@@ -1,17 +1,21 @@
 # Publishes the app to GitHub Pages.
 #
 # Pages sites are PUBLIC even when the repository is private (outside GitHub
-# Enterprise Cloud with access control), so enabling this publishes the app to
-# anyone with the URL. It only runs once Pages is switched on under
-# Settings > Pages > Source: GitHub Actions.
+# Enterprise Cloud with access control), so running this publishes the app to
+# anyone with the URL.
+#
+# Manual trigger only, deliberately. `deploy-pages` fails if Pages is not
+# enabled, so a push trigger would paint every commit red until someone turns
+# Pages on. Once it is on (Settings > Pages > Source: GitHub Actions), either
+# run this from the Actions tab or add a push trigger here:
+#
+#   on:
+#     push:
+#       branches: [main]
+#     workflow_dispatch:
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    # Update this list if the default branch changes.
-    branches:
-      - main
-      - claude/song-to-tab-guitar-assistant-xctnri
   workflow_dispatch:
 
 permissions:

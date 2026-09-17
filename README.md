@@ -36,8 +36,11 @@ nothing is published.
 ### GitHub Pages (publishes the app)
 
 `.github/workflows/pages.yml` builds, typechecks, tests and deploys to
-`https://<owner>.github.io/song-tab/`. It does nothing until you enable it under
-**Settings > Pages > Source: GitHub Actions**.
+`https://<owner>.github.io/song-tab/`. It is **manual-trigger only**: enable
+Pages under **Settings > Pages > Source: GitHub Actions**, then run the workflow
+from the Actions tab. (`deploy-pages` fails when Pages is off, so a push trigger
+would mark every commit red until someone turned it on. Add one back once Pages
+is enabled - the workflow says where.)
 
 Two things to know before you do:
 
