@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink-900 text-slate-200 antialiased;
+}
+
+/* alphaTab renders onto a light surface; keep it readable inside the dark shell. */
+.at-host {
+  color: #111827;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-600 bg-ink-700 px-3 py-2
+           text-sm font-medium text-slate-200 transition hover:bg-ink-600
+           disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply border-amber-450 bg-amber-450 text-ink-900 hover:bg-amber-400;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent hover:bg-ink-700;
+  }
+  .card {
+    @apply rounded-xl border border-ink-600 bg-ink-800 p-4;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400;
+  }
+  .input {
+    @apply w-full rounded-md border border-ink-600 bg-ink-900 px-2 py-1.5 text-sm text-slate-100
+           focus:border-amber-450 focus:outline-none;
+  }
+  .chip {
+    @apply rounded-full border border-ink-600 bg-ink-700 px-2 py-0.5 text-xs text-slate-300;
+  }
+}

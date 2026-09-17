@@ -1,0 +1,10 @@
+node_modules
+dist
+.DS_Store
+*.local
+public/font/
+public/soundfont/
+public/alphaTab*
+server/__pycache__/
+server/.venv/
+tsconfig.tsbuildinfo
