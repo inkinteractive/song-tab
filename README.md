@@ -16,6 +16,41 @@ npm run dev     # http://localhost:5173
 No login, no upload, no server. Analysis, rendering and every export run in the
 browser.
 
+## Previewing it
+
+Microphone and tab capture need a **secure context**, so the app must be served
+over HTTPS or from `localhost`. All three routes below satisfy that.
+
+### Locally (best for real use)
+
+The clone-and-`npm run dev` above. Use this when you actually want to capture
+audio: it is your real input device, with no network in the way.
+
+### GitHub Codespaces (keeps the repo private)
+
+`Code > Codespaces > Create codespace`. `.devcontainer/` installs dependencies
+on create; then run `npm run dev` and open the forwarded port 5173. The
+forwarded URL is HTTPS and private to your account, so mic capture works and
+nothing is published.
+
+### GitHub Pages (publishes the app)
+
+`.github/workflows/pages.yml` builds, typechecks, tests and deploys to
+`https://<owner>.github.io/song-tab/`. It does nothing until you enable it under
+**Settings > Pages > Source: GitHub Actions**.
+
+Two things to know before you do:
+
+- **A Pages site is public even when the repository is private** (unless you are
+  on GitHub Enterprise Cloud with access control). Enabling it publishes the app
+  to anyone with the URL. The repository stays private either way.
+- Pages for a private repository needs a **paid plan**. On a free personal
+  account you would have to make the repository public first.
+
+The workflow sets `BASE_PATH=/song-tab/` so the bundle, Bravura and the
+SoundFont all resolve under the project path, and copies `index.html` to
+`404.html` as the single-page-app fallback.
+
 ---
 
 ## What it can and cannot hear

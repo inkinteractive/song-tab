@@ -1,0 +1,15 @@
+{
+  "name": "song-tab",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "postCreateCommand": "npm install",
+  "forwardPorts": [5173, 4173],
+  "portsAttributes": {
+    "5173": { "label": "song-tab (dev)", "onAutoForward": "openPreview" },
+    "4173": { "label": "song-tab (preview build)", "onAutoForward": "silent" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode", "bradlc.vscode-tailwindcss"]
+    }
+  }
+}

@@ -1,0 +1,68 @@
+# Publishes the app to GitHub Pages.
+#
+# Pages sites are PUBLIC even when the repository is private (outside GitHub
+# Enterprise Cloud with access control), so enabling this publishes the app to
+# anyone with the URL. It only runs once Pages is switched on under
+# Settings > Pages > Source: GitHub Actions.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    # Update this list if the default branch changes.
+    branches:
+      - main
+      - claude/song-to-tab-guitar-assistant-xctnri
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; never cancel one that is mid-flight.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      # A project site is served from /<repo>/, so the bundle and alphaTab's
+      # font and SoundFont all have to resolve against that prefix.
+      - name: Build
+        run: npm run build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+
+      # A single-page app needs every path to fall back to index.html, and
+      # Pages has no rewrite rules - a copied 404.html is the usual trick.
+      - name: Add SPA fallback
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

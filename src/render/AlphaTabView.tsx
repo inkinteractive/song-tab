@@ -13,6 +13,14 @@ import * as alphaTab from '@coderline/alphatab';
 import { buildScore } from './score';
 import type { Arrangement } from '../types';
 
+// Bravura and the SoundFont are copied into the public directory by the
+// alphaTab Vite plugin, so they live beside index.html. Resolving them through
+// BASE_URL keeps them findable when the app is served from a subpath - a
+// GitHub Pages project site, for instance - rather than the domain root.
+const ASSET_BASE = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+
 export type CursorMode = 'synth' | 'clip';
 
 interface Props {
@@ -40,7 +48,7 @@ export function AlphaTabView({ arrangement, title, mode, externalTime, onReady, 
     try {
       api = new alphaTab.AlphaTabApi(host, {
         core: {
-          fontDirectory: '/font/',
+          fontDirectory: `${ASSET_BASE}font/`,
           engine: 'svg',
           logLevel: alphaTab.LogLevel.Warning,
           // The score sits in its own scroll container well down the page. With
@@ -68,7 +76,7 @@ export function AlphaTabView({ arrangement, title, mode, externalTime, onReady, 
         },
         player: {
           playerMode: alphaTab.PlayerMode.EnabledAutomatic,
-          soundFont: '/soundfont/sonivox.sf3',
+          soundFont: `${ASSET_BASE}soundfont/sonivox.sf3`,
           scrollElement: host,
           enableCursor: true,
           enableUserInteraction: true,
