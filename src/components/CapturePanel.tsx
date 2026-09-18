@@ -171,15 +171,15 @@ export function CapturePanel() {
               className={`btn h-20 flex-col ${embedded ? 'opacity-60' : 'btn-primary'}`}
               onClick={() => arm('mic')}
             >
-              <span className="text-base">🎤 Microphone</span>
+              <span className="text-base">Microphone</span>
               <span className="text-xs font-normal opacity-80">Student plays, or point at a speaker</span>
             </button>
             <button className={`btn h-20 flex-col ${embedded ? 'opacity-60' : ''}`} onClick={() => arm('tab')}>
-              <span className="text-base">🖥️ Browser tab audio</span>
+              <span className="text-base">Browser tab audio</span>
               <span className="text-xs font-normal opacity-70">Share a tab with "Share tab audio" ticked</span>
             </button>
             <label className={`btn h-20 cursor-pointer flex-col ${embedded ? 'btn-primary' : ''}`}>
-              <span className="text-base">📁 Import a file</span>
+              <span className="text-base">Import a file</span>
               <span className="text-xs font-normal opacity-70">WAV, MP3, M4A, FLAC</span>
               <input
                 type="file"

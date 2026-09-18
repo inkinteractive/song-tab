@@ -179,7 +179,7 @@ export function WaveformTrimmer() {
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
         <button className="btn btn-primary" onClick={togglePreview}>
-          {playing ? '■ Stop' : '▶ Preview selection'}
+          {playing ? 'Stop' : 'Preview selection'}
         </button>
 
         <TimeField label="Start" value={trim.start} onNudge={(d) => nudge('start', d)} />

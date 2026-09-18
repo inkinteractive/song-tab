@@ -39,7 +39,7 @@ export function PdfExportButton({ className = '' }: { className?: string }) {
         onClick={() => void download()}
         title="Diagrams, bar grid, strumming pattern and the tab - the print-and-hand-over one"
       >
-        {busy ? 'Building…' : '⬇ Chord chart (PDF)'}
+        {busy ? 'Building…' : 'Chord chart (PDF)'}
       </button>
     </div>
   );

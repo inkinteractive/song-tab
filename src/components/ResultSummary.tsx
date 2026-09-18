@@ -219,7 +219,7 @@ export function ResultSummary() {
           label="Strum"
           hint={
             <>
-              <span className="font-mono text-amber-450">{patternToString(pattern)}</span> — {pattern.description}
+              <span className="font-mono text-amber-450">{patternToString(pattern)}</span> - {pattern.description}
             </>
           }
         >

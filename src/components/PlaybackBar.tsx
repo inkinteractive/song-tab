@@ -172,10 +172,10 @@ export function PlaybackBar({ api, source, onSourceChange }: Props) {
       </div>
 
       <button className="btn btn-primary px-3" onClick={toggle} disabled={source === 'synth' && !api}>
-        {playing ? '❚❚' : '▶'}
+        {playing ? 'Pause' : 'Play'}
       </button>
-      <button className="btn px-3" onClick={stop} title="Stop">
-        ■
+      <button className="btn px-3" onClick={stop}>
+        Stop
       </button>
       <button
         className={`btn px-3 ${loop ? 'border-amber-450 text-amber-450' : ''}`}
@@ -183,7 +183,7 @@ export function PlaybackBar({ api, source, onSourceChange }: Props) {
         title={loop ? 'Looping - click to play once' : 'Loop the clip'}
         aria-pressed={loop}
       >
-        ⟳
+        Loop
       </button>
 
       <input

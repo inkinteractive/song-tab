@@ -182,7 +182,7 @@ export function ChordChart() {
         <div className="card space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-slate-200">
-              Bar {Math.floor(selected.startBeat / a.beatsPerBar) + 1} — {displayName(selected, a)}
+              Bar {Math.floor(selected.startBeat / a.beatsPerBar) + 1} - {displayName(selected, a)}
               {a.capo > 0 && (
                 <span className="ml-2 text-xs font-normal text-slate-500">sounds {soundingName(selected, a)}</span>
               )}
