@@ -33,22 +33,32 @@ on create; then run `npm run dev` and open the forwarded port 5173. The
 forwarded URL is HTTPS and private to your account, so mic capture works and
 nothing is published.
 
-### GitHub Pages (publishes the app)
+### GitHub Pages - the live site
 
-`.github/workflows/pages.yml` builds, typechecks, tests and deploys to
-`https://<owner>.github.io/song-tab/`. It is **manual-trigger only**: enable
-Pages under **Settings > Pages > Source: GitHub Actions**, then run the workflow
-from the Actions tab. (`deploy-pages` fails when Pages is off, so a push trigger
-would mark every commit red until someone turned it on. Add one back once Pages
-is enabled - the workflow says where.)
+**https://inkinteractive.github.io/song-tab/**
 
-Two things to know before you do:
+This is the one place capture actually works without installing anything: a
+top-level HTTPS page, so the microphone and tab audio are available, phone
+included.
 
-- **A Pages site is public even when the repository is private** (unless you are
-  on GitHub Enterprise Cloud with access control). Enabling it publishes the app
-  to anyone with the URL. The repository stays private either way.
-- Pages for a private repository needs a **paid plan**. On a free personal
-  account you would have to make the repository public first.
+`.github/workflows/pages.yml` typechecks, tests, builds and deploys on every
+push to `main`, so the site is whatever `main` is. It can also be run by hand
+from the Actions tab.
+
+It depends on two settings that live outside the repository:
+
+- **Settings > Pages > Source: GitHub Actions.**
+- **Settings > Environments > github-pages > Deployment branches** must allow
+  `main`. That policy is pinned to whatever branch was default when Pages was
+  first switched on, so changing the default branch silently breaks deploys -
+  the build passes and the deploy job fails in about a second **with no logs**,
+  because it never starts. That signature means the branch policy, not your
+  code.
+
+Also worth knowing: **a Pages site is public even when the repository is
+private** (outside GitHub Enterprise Cloud with access control), and Pages from
+a private repository needs a paid plan - on a free personal account the
+repository has to be public.
 
 The workflow sets `BASE_PATH=/song-tab/` so the bundle, Bravura and the
 SoundFont all resolve under the project path, and copies `index.html` to

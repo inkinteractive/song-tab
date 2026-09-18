@@ -1,21 +1,20 @@
 # Publishes the app to GitHub Pages.
 #
-# Pages sites are PUBLIC even when the repository is private (outside GitHub
-# Enterprise Cloud with access control), so running this publishes the app to
-# anyone with the URL.
+# The site is public. Every push to main redeploys it, so main is what
+# https://<owner>.github.io/song-tab/ is serving at any moment.
 #
-# Manual trigger only, deliberately. `deploy-pages` fails if Pages is not
-# enabled, so a push trigger would paint every commit red until someone turns
-# Pages on. Once it is on (Settings > Pages > Source: GitHub Actions), either
-# run this from the Actions tab or add a push trigger here:
-#
-#   on:
-#     push:
-#       branches: [main]
-#     workflow_dispatch:
+# Two settings this depends on, both outside the repository:
+#   - Settings > Pages > Source: GitHub Actions.
+#   - Settings > Environments > github-pages > Deployment branches must allow
+#     main. That policy is pinned to whatever branch was default when Pages was
+#     switched on, so renaming or changing the default branch silently breaks
+#     deploys: the build passes and the deploy job fails in about a second with
+#     no logs at all, because it never starts.
 name: Deploy to GitHub Pages
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
