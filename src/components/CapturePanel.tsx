@@ -150,6 +150,12 @@ export function CapturePanel() {
           Play the section out loud and capture it, or share the browser tab it is streaming from. Thirty seconds of
           the verse or chorus reads far better than a whole track.
         </p>
+        <p className="mt-2 text-sm text-slate-500">
+          It reads harmony from <strong className="font-medium text-slate-400">one instrument at a time</strong> - a
+          student playing in the room, a solo guitar demo, a sparse recording. A produced track with a full band,
+          vocals and heavy effects will come back with the wrong chords. It says so when the result looks like that,
+          and every chord on the chart is editable.
+        </p>
 
         {embedded && (
           <div className="mt-4 rounded-md border border-amber-450/50 bg-amber-450/10 px-3 py-2 text-sm text-amber-100">
