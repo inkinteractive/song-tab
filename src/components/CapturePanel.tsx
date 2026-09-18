@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { CaptureError, decodeToBuffer, startCapture, startRecording, type CaptureSession, type Recorder } from '../audio/capture';
+import { CaptureError, captureBlockedByEmbedder, decodeToBuffer, startCapture, startRecording, type CaptureSession, type Recorder } from '../audio/capture';
 import { toMono } from '../audio/buffer';
 import { useStore } from '../state/store';
 
@@ -20,6 +20,10 @@ export function CapturePanel() {
   const [error, setError] = useState<{ message: string; hint: string } | null>(null);
   const [level, setLevel] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+
+  // Capture is gated by the embedding page's permissions policy, so say so
+  // before the teacher clicks a button that cannot work here.
+  const embedded = captureBlockedByEmbedder('mic') || captureBlockedByEmbedder('tab');
 
   const sessionRef = useRef<CaptureSession | null>(null);
   const recorderRef = useRef<Recorder | null>(null);
@@ -147,17 +151,28 @@ export function CapturePanel() {
           the verse or chorus reads far better than a whole track.
         </p>
 
+        {embedded && (
+          <div className="mt-4 rounded-md border border-amber-450/50 bg-amber-450/10 px-3 py-2 text-sm text-amber-100">
+            <strong>Running in an embedded preview.</strong> Microphone and tab capture are blocked by the page that
+            frames this one, and there is no permission you can grant from here. <strong>Import a file</strong> works
+            normally; for live capture, open the app in its own browser tab or run it locally.
+          </div>
+        )}
+
         {phase === 'idle' && (
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <button className="btn btn-primary h-20 flex-col" onClick={() => arm('mic')}>
+            <button
+              className={`btn h-20 flex-col ${embedded ? 'opacity-60' : 'btn-primary'}`}
+              onClick={() => arm('mic')}
+            >
               <span className="text-base">🎤 Microphone</span>
               <span className="text-xs font-normal opacity-80">Student plays, or point at a speaker</span>
             </button>
-            <button className="btn h-20 flex-col" onClick={() => arm('tab')}>
+            <button className={`btn h-20 flex-col ${embedded ? 'opacity-60' : ''}`} onClick={() => arm('tab')}>
               <span className="text-base">🖥️ Browser tab audio</span>
               <span className="text-xs font-normal opacity-70">Share a tab with "Share tab audio" ticked</span>
             </button>
-            <label className="btn h-20 cursor-pointer flex-col">
+            <label className={`btn h-20 cursor-pointer flex-col ${embedded ? 'btn-primary' : ''}`}>
               <span className="text-base">📁 Import a file</span>
               <span className="text-xs font-normal opacity-70">WAV, MP3, M4A, FLAC</span>
               <input

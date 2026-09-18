@@ -30,6 +30,52 @@ export class CaptureError extends Error {
   }
 }
 
+/**
+ * True when the app is running inside an iframe.
+ *
+ * Capture is gated by the *embedding page's* permissions policy, not just by
+ * the viewer's own permission. A frame that does not carry `allow="microphone"`
+ * gets a NotAllowedError that no amount of clicking the address bar will fix,
+ * so the two cases need different advice.
+ */
+export function isEmbedded(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    // A cross-origin parent throws on access, which is itself the answer.
+    return true;
+  }
+}
+
+/**
+ * Whether the embedding page has granted us the capture feature at all.
+ * `featurePolicy` is Chromium-only, so an unknown answer is reported as such
+ * rather than guessed.
+ */
+function policyAllows(feature: 'microphone' | 'display-capture'): boolean | null {
+  const fp = (document as unknown as { featurePolicy?: { allowsFeature(f: string): boolean } }).featurePolicy;
+  if (!fp?.allowsFeature) return null;
+  try {
+    return fp.allowsFeature(feature);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether live capture is blocked by the page embedding us.
+ *
+ * A same-origin frame inherits the policy and works normally, so being framed
+ * is not on its own a problem - it is the combination of being framed and the
+ * feature not being granted. When `featurePolicy` is unavailable the answer is
+ * unknown, and for a framed page unknown is treated as blocked: warning the
+ * teacher costs nothing, letting them click a dead button costs a lesson.
+ */
+export function captureBlockedByEmbedder(source: CaptureSource = 'mic'): boolean {
+  if (!isEmbedded()) return false;
+  return policyAllows(source === 'mic' ? 'microphone' : 'display-capture') !== true;
+}
+
 /** Raw, unprocessed mic audio. Browser voice processing wrecks music. */
 const MIC_CONSTRAINTS: MediaTrackConstraints = {
   echoCancellation: false,
@@ -69,7 +115,17 @@ export async function startCapture(source: CaptureSource): Promise<CaptureSessio
     if (err instanceof CaptureError) throw err;
     const name = (err as DOMException)?.name;
     if (name === 'NotAllowedError') {
-      throw new CaptureError('Permission denied', 'The browser blocked the capture. Allow it in the address-bar permissions and try again.');
+      if (captureBlockedByEmbedder(source)) {
+        throw new CaptureError(
+          'This page cannot reach your ' + (source === 'mic' ? 'microphone' : 'screen or tabs'),
+          'The app is running inside an embedded frame that does not allow capture, so there is no permission for you to grant here. ' +
+            'Open the app in its own browser tab, or run it locally, and capture will work. You can still import an audio file below.',
+        );
+      }
+      throw new CaptureError(
+        'Permission denied',
+        'The browser blocked the capture. Allow it in the address-bar permissions and try again.',
+      );
     }
     if (name === 'NotFoundError') {
       throw new CaptureError('No input device found', 'No microphone is connected, or the browser cannot see one.');
