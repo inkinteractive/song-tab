@@ -12,7 +12,7 @@ import { PlaybackBar } from './components/PlaybackBar';
 import { PdfExportButton } from './components/PdfExportButton';
 import { TabStaff } from './components/TabStaff';
 import { ReliabilityNote } from './components/ReliabilityNote';
-import { SHOW_RIFF_EDITOR, SHOW_WHAT_IT_HEARD } from './panels';
+import { SHOW_RELIABILITY_NOTE, SHOW_RIFF_EDITOR, SHOW_WHAT_IT_HEARD } from './panels';
 import type { PlaybackSource } from './components/PlaybackBar';
 
 // alphaTab is ~1.5MB and no longer draws anything; it is the synth only.
@@ -108,7 +108,7 @@ function ResultScreen() {
 
       {/* Before the tab, not after it: a teacher who reads the page top to
           bottom should learn it may be wrong before they read the notes. */}
-      <ReliabilityNote />
+      {SHOW_RELIABILITY_NOTE && <ReliabilityNote />}
 
       {/* The tab sits directly under the transport - it is what you read while
           the clip plays, so nothing should come between them. */}

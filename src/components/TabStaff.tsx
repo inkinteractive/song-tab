@@ -143,8 +143,8 @@ export function TabStaff({ arrangement: a }: { arrangement: Arrangement }) {
       </div>
       {a.riff.length === 0 && (
         <p className="mt-3 whitespace-normal font-sans text-xs text-slate-500">
-          No riff was extracted, so the staff is empty - the chord names above it are the arrangement. Lower the
-          note-engine confidence in "What it heard" and re-analyse if the song has a line worth catching.
+          No riff was extracted, so the staff is empty - the chord names above it are the arrangement. Trimming to a
+          section where the lead line is clearer and analysing again is usually the fix.
         </p>
       )}
     </div>

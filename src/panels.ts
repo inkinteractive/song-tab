@@ -18,6 +18,11 @@
  *                     still reachable from the stepper in the header; the
  *                     arrangement fields are not reachable anywhere else.
  *   RIFF_EDITOR       per-note editing: pitch, length, octave shift, delete.
+ *   RELIABILITY_NOTE  the banner over the tab that says when the progression
+ *                     never settles into a key. This covers both of its
+ *                     wordings: the amber "check these chords" and the red
+ *                     "these chords are probably wrong". The chart still gets
+ *                     scored (`analysis/reliability.ts`), nothing says so.
  *
  * Typed as `boolean` rather than left as literals so a flag that is off does
  * not make TypeScript treat the branch as dead code.
@@ -26,3 +31,4 @@
 export const SHOW_ENGINE_SETTINGS: boolean = false;
 export const SHOW_WHAT_IT_HEARD: boolean = false;
 export const SHOW_RIFF_EDITOR: boolean = false;
+export const SHOW_RELIABILITY_NOTE: boolean = false;
