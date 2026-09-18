@@ -2,20 +2,12 @@
  * Plain-text exports: the chord chart a teacher prints, and ASCII tab.
  */
 
-import {
-  displayName,
-  preferFlats,
-  soundingName,
-  toBars,
-  tuningOf,
-  uniqueShapes,
-} from '../music/arrangement';
-import { keyName, midiToName, pitchClassName } from '../music/theory';
+import { displayName, preferFlats, soundingName, toBars, uniqueShapes } from '../music/arrangement';
+import { keyName, midiToName } from '../music/theory';
+import { buildTabGrid } from '../render/tabGrid';
 import { patternById, patternToString } from '../music/strumming';
 import { tuningById } from '../music/fretboard';
 import type { Arrangement } from '../types';
-
-const STRING_LABELS_STANDARD = ['E', 'A', 'D', 'G', 'B', 'e'];
 
 function header(a: Arrangement, title: string): string[] {
   const tuning = tuningById(a.tuningId);
@@ -84,53 +76,11 @@ export function chordChartText(a: Arrangement, title = 'Simplified chord chart')
 /** ASCII tab. Chord names sit above the staff; riff notes land on the grid. */
 export function asciiTab(a: Arrangement, title = 'Simplified tab'): string {
   const lines = header(a, title);
-  const bars = toBars(a);
-  const tuning = tuningOf(a);
-  const labels =
-    a.tuningId === 'standard'
-      ? STRING_LABELS_STANDARD
-      : tuning.map((m) => pitchClassName(m % 12).padEnd(1).slice(0, 2));
 
-  const subdivisions = 4; // sixteenth-note columns
-  const barWidth = a.beatsPerBar * subdivisions;
-  const barsPerLine = Math.max(1, Math.floor(72 / (barWidth + 1)));
-
-  for (let i = 0; i < bars.length; i += barsPerLine) {
-    const row = bars.slice(i, i + barsPerLine);
-    const chordLine: string[] = [];
-    const stringLines: string[][] = labels.map(() => []);
-
-    for (const bar of row) {
-      // Chord names above the bar.
-      const cells = new Array(barWidth).fill(' ');
-      for (const c of bar.chords) {
-        const col = Math.round((c.startBeat - bar.startBeat) * subdivisions);
-        const name = displayName(c, a);
-        for (let k = 0; k < name.length && col + k < barWidth; k++) cells[col + k] = name[k];
-      }
-      chordLine.push(cells.join(''));
-
-      // Tab rows.
-      const grid = labels.map(() => new Array(barWidth).fill('-'));
-      for (const n of bar.notes) {
-        if (n.string === undefined || n.fret === undefined) continue;
-        const col = Math.round((n.startBeat - bar.startBeat) * subdivisions);
-        if (col < 0 || col >= barWidth) continue;
-        const text = String(n.fret);
-        // Reverse so the high string prints on top, as tab is read.
-        const rowIdx = labels.length - 1 - n.string;
-        for (let k = 0; k < text.length && col + k < barWidth; k++) grid[rowIdx][col + k] = text[k];
-      }
-      grid.forEach((g, idx) => stringLines[idx].push(g.join('')));
-    }
-
-    lines.push(`   ${chordLine.join(' ')}`);
-    labels
-      .slice()
-      .reverse()
-      .forEach((label, idx) => {
-        lines.push(`${label.padEnd(2)}|${stringLines[idx].join('|')}|`);
-      });
+  // The same grid the page draws, printed instead of coloured.
+  for (const system of buildTabGrid(a).systems) {
+    lines.push(system.chordLine.text.replace(/\s+$/, ''));
+    for (const line of system.stringLines) lines.push(line.text);
     lines.push('');
   }
 

@@ -10,10 +10,11 @@ import { ChordChart } from './components/ChordChart';
 import { RiffEditor } from './components/RiffEditor';
 import { PlaybackBar } from './components/PlaybackBar';
 import { PdfExportButton } from './components/PdfExportButton';
-import type { CursorMode } from './render/AlphaTabView';
+import { TabStaff } from './components/TabStaff';
 import type { PlaybackSource } from './components/PlaybackBar';
 
-// alphaTab is ~1.5MB; the chord chart should not wait for it.
+// alphaTab is ~1.5MB and no longer draws anything; it is the synth only.
+// See the note where it is mounted.
 const AlphaTabView = lazy(() =>
   import('./render/AlphaTabView').then((m) => ({ default: m.AlphaTabView })),
 );
@@ -81,8 +82,6 @@ function ResultScreen() {
   const [api, setApi] = useState<alphaTab.AlphaTabApi | null>(null);
   const [source, setSource] = useState<PlaybackSource>('clip');
   const [scoreError, setScoreError] = useState<string | null>(null);
-  // Anything that is not alphaTab's own synth drives the cursor from outside.
-  const cursorMode: CursorMode = source === 'synth' ? 'synth' : 'external';
   const seenError = useRef(false);
 
   // Keyboard undo/redo - a lesson moves fast.
@@ -112,11 +111,32 @@ function ResultScreen() {
           <h3 className="font-semibold text-slate-200">Tab</h3>
           <PdfExportButton />
         </div>
-        <Suspense fallback={<p className="text-sm text-slate-500">Loading the tab renderer…</p>}>
+        <TabStaff arrangement={a} />
+        {scoreError && source === 'synth' && (
+          <p className="mt-2 text-xs text-amber-450">
+            Synth playback is unavailable in this browser. Use "Original clip" instead.
+          </p>
+        )}
+      </div>
+
+      {/*
+        alphaTab no longer draws the tab - the staff above does - but it is
+        still the synth, and its player only exists attached to a rendered
+        score. So it renders off-screen: layout nobody sees, in exchange for
+        being able to hear the arrangement.
+
+        It stays mounted whichever source is selected. Mounting it on the
+        switch to Synth instead looked like a saving and was not: the soundfont
+        takes seconds to load, so the first press of Play did nothing, and
+        unmounting on the way back to the clip left the transport holding a
+        destroyed api.
+      */}
+      <div aria-hidden className="pointer-events-none fixed left-0 top-0 h-px w-[900px] overflow-hidden opacity-0">
+        <Suspense fallback={null}>
           <AlphaTabView
             arrangement={a}
             title={title}
-            mode={cursorMode}
+            mode="synth"
             onReady={setApi}
             onError={(m) => {
               if (seenError.current) return;
@@ -125,11 +145,6 @@ function ResultScreen() {
             }}
           />
         </Suspense>
-        {scoreError && source === 'synth' && (
-          <p className="mt-2 text-xs text-amber-450">
-            Synth playback is unavailable in this browser. Use "Original clip" instead.
-          </p>
-        )}
       </div>
 
       <div className="flex items-center justify-end gap-2">

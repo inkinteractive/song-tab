@@ -8,6 +8,7 @@ import { asciiTab, chordChartText } from './ascii';
 import { splitDuration, toMusicXml } from './musicxml';
 import { toMidi } from './midi';
 import { buildScore, durationParts, toGuitarProBytes } from '../render/score';
+import { buildTabGrid, columnForBeat, COLUMNS_PER_BEAT } from '../render/tabGrid';
 import type { Arrangement } from '../types';
 
 function fixture(overrides: Partial<Arrangement> = {}): Arrangement {
@@ -137,6 +138,54 @@ describe('MIDI', () => {
   it('omits the riff track when there is no riff', () => {
     const bytes = toMidi(fixture({ riff: [] }));
     expect((bytes[10] << 8) | bytes[11]).toBe(2);
+  });
+});
+
+describe('tab grid', () => {
+  // The page and the PDF read this grid, and the playhead is positioned by
+  // character column. If a line's characters and its columns disagree by even
+  // one, the cursor drifts across the bar and the two documents stop matching.
+  it('keeps every line the same width, and the width it advertises', () => {
+    const grid = buildTabGrid(fixture());
+    expect(grid.barsPerSystem).toBe(4);
+    expect(grid.columnsPerBar).toBe(16);
+    expect(grid.width).toBe(grid.prefixColumns + 4 * (grid.columnsPerBar + 1));
+    for (const system of grid.systems) {
+      // A final short system is narrower, but its own lines all agree.
+      const width = grid.prefixColumns + system.bars.length * (grid.columnsPerBar + 1);
+      expect(width).toBeLessThanOrEqual(grid.width);
+      expect(system.chordLine.text).toHaveLength(width);
+      expect(system.chordLine.kinds).toHaveLength(width);
+      for (const line of system.stringLines) {
+        expect(line.text).toHaveLength(width);
+        expect(line.kinds).toHaveLength(width);
+      }
+    }
+  });
+
+  it('puts a note on the column its beat maps to', () => {
+    const a = fixture();
+    const grid = buildTabGrid(a);
+    const system = grid.systems[0];
+    // n2 is fret 3 on our string 5 (high e) at beat 0.5 - the top printed line.
+    const column = columnForBeat(grid, system, 0.5, a.beatsPerBar);
+    expect(column).toBe(grid.prefixColumns + 0.5 * COLUMNS_PER_BEAT);
+    expect(system.stringLines[0].text[column!]).toBe('3');
+    expect(system.stringLines[0].kinds[column!]).toBe('fret');
+    // And the chord name for that bar starts on the bar's first column.
+    expect(system.chordLine.text.slice(grid.prefixColumns, grid.prefixColumns + 1)).toBe('C');
+  });
+
+  it('reads out as six labelled strings with bar lines', () => {
+    const text = asciiTab(fixture());
+    const lines = text.split('\n');
+    const staff = lines.filter((l) => /^[eBGDAE] \|/.test(l));
+    expect(staff).toHaveLength(6); // one system's worth: three bars fit on one line
+    expect(staff[0].startsWith('e |')).toBe(true);
+    expect(staff[5].startsWith('E |')).toBe(true);
+    // Bar lines land on the same column on every string.
+    const barColumns = (l: string) => [...l].flatMap((c, i) => (c === '|' ? [i] : []));
+    for (const line of staff) expect(barColumns(line)).toEqual(barColumns(staff[0]));
   });
 });
 

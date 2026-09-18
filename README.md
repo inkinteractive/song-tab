@@ -109,13 +109,13 @@ with the selector and the ~40MB of TensorFlow.js the top tier pulled in.
 5. **Suggest a capo** (or a transposition) that turns awkward chords into open
    shapes.
 6. **Map notes to frets**, minimising hand movement, in any of seven tunings.
-7. **Render** with alphaTab as the same page the PDF prints: **one tablature
-   staff**, chord names written above it, systems wrapped down the panel. A
-   guitar teacher reads frets, so there is no standard-notation staff doubling
-   every system's height to say the same thing twice, and no second staff for
-   the strummed voicings - those are diagrams in the chord chart below and the
-   names over the tab. A moving cursor shades the sounding bar and draws a line
-   at the beat, driven by whichever source is playing.
+7. **Render** the tab as the monospace grid a guitarist expects: six dashed
+   lines, fret numbers on them, chord names above, bar lines between. The page
+   and the PDF are built from the same grid (`src/render/tabGrid.ts`), so what
+   is on screen is what gets printed. Engraved notation was tried first and was
+   the wrong document - a teacher reads `e|--7--5--|`, not a staff. A moving
+   cursor shades the sounding bar and draws a line at the beat, driven by
+   whichever source is playing.
 8. **Edit** anything: chords, voicings, note pitches and lengths, tempo, key,
    time signature, tuning, capo, strumming pattern, and whether chords read as
    plain triads or as detected. Undo/redo with ⌘Z / ⌘⇧Z.
@@ -173,7 +173,8 @@ notes even when the tracker does not.
 ## Exports
 
 The UI offers **one** export: the chord-chart PDF. That is the artefact a lesson
-actually needs, and every other button was clutter around it.
+actually needs, and every other button was clutter around it. Its tab pages are
+the same grid the app draws, character for character.
 
 Working exporters for MusicXML, MIDI, Guitar Pro 7 (`.gp`), ASCII tab and
 alphaTex are still in `src/export/`, still covered by tests, and unexposed. The
@@ -209,7 +210,8 @@ src/
   analysis/    dsp (FFT, chroma, onsets, tempo, pitch), essentia adapter,
                chord decoder, simplifier, melody segmentation, worker
   music/       theory, chord shapes, fretboard mapping, capo search, strumming
-  render/      alphaTab score builder, alphaTab React view, SVG chord diagrams
+  render/      tab grid (page + PDF), alphaTab score builder and synth view,
+               SVG chord diagrams
   export/      ascii, musicxml, midi, pdf, guitar pro
   components/  the UI
   state/       store, undo/redo
@@ -220,9 +222,11 @@ thousand FFTs, and the page stays responsive. alphaTab (~1.2MB), Essentia's WASM
 (~2.5MB) and jsPDF are all lazily loaded, so the first paint doesn't wait for
 any of them.
 
-The alphaTab `Score` model is built once and serves rendering, synth playback,
-Guitar Pro export and alphaTex export, so what you see on screen is what lands
-in the file.
+The alphaTab `Score` model serves synth playback, Guitar Pro export and
+alphaTex export. It no longer draws anything: the tab on the page comes from
+`tabGrid.ts`. alphaTab's player only exists attached to a rendered score, so the
+view is still mounted - off-screen, one system nobody sees, in exchange for
+being able to hear the arrangement.
 
 ### Three things that are easy to get backwards
 
@@ -233,9 +237,13 @@ in the file.
   Both conventions are in the codebase, each with a regression test, because
   flipping either one silently produces a mirror-image fingering.
 - **A tab staff cannot paint a note with no string.** alphaTab's painter throws
-  deep inside its worker, and the whole score fails to render while the rest of
-  the app looks fine. Anything reaching the riff track has a string assigned;
-  there is a test asserting exactly that.
+  deep inside its worker, and the whole score fails while the rest of the app
+  looks fine. Anything reaching the riff track has a string assigned; there is a
+  test asserting exactly that.
+- **The tab grid is measured in characters.** The playhead is positioned in
+  `ch` units, so a line whose characters and whose column arithmetic disagree by
+  one puts the cursor on the wrong note. A test pins every line to the width its
+  own system claims.
 
 ## Tests
 
@@ -243,11 +251,12 @@ in the file.
 npm test
 ```
 
-51 tests. The pipeline tests synthesise chord progressions with realistic
+54 tests. The pipeline tests synthesise chord progressions with realistic
 harmonic density and noise, run the real analysis path, and assert the chart
 that comes out is the one a teacher would write down - currently 5/5
 progressions recovered exactly, with tempo inside 5%. The exporter tests check
-wellformedness and the invariants MuseScore and Guitar Pro actually care about.
+wellformedness, the invariants MuseScore and Guitar Pro actually care about, and
+the character alignment the tab grid and its playhead depend on.
 The polyphony tests cover what phase 2 changed: stacking, string collisions,
 and the fretboard limit.
 
