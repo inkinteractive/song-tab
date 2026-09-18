@@ -44,8 +44,9 @@ jobs:
 
       - run: npm test
 
-      # A project site is served from /<repo>/, so the bundle and alphaTab's
-      # font and SoundFont all have to resolve against that prefix.
+      # Served from the root of the custom domain (tab.inkinteractive.com.au),
+      # so the bundle and alphaTab's font + SoundFont resolve against '/'.
+      # BASE_PATH stays '/'; do not set it to /<repo>/ or assets 404.
       - name: Build
         run: npm run build
         env:
