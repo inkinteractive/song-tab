@@ -11,7 +11,7 @@ import { ChordChart } from './components/ChordChart';
 import { ShapeStrip } from './components/ShapeStrip';
 import { RiffEditor } from './components/RiffEditor';
 import { PlaybackBar } from './components/PlaybackBar';
-import { ExportPanel } from './components/ExportPanel';
+import { PdfExportButton } from './components/PdfExportButton';
 import type { CursorMode } from './render/AlphaTabView';
 import type { PlaybackSource } from './components/PlaybackBar';
 
@@ -134,25 +134,22 @@ function ResultScreen() {
         </div>
       </div>
 
-      {/* What it heard, with the capo helper alongside it. */}
+      {/* What it heard on the left; shapes over the capo helper on the right. */}
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <ResultSummary />
-        <CapoHelper />
+        <div className="space-y-4">
+          <ShapeStrip />
+          <CapoHelper />
+        </div>
       </div>
 
-      {/* Shapes sit directly above the chart they belong to, both full width. */}
-      <ShapeStrip />
       <ChordChart />
       <RiffEditor />
 
       <div className="card">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex items-center justify-between gap-3">
           <h3 className="font-semibold text-slate-200">Score</h3>
-          <span className="text-xs text-slate-500">
-            {cursorMode === 'external'
-              ? `Cursor follows the ${source === 'guitar' ? 'isolated guitar' : 'original clip'}`
-              : 'alphaTab is playing its own rendering'}
-          </span>
+          <PdfExportButton />
         </div>
         <Suspense fallback={<p className="text-sm text-slate-500">Loading the score renderer…</p>}>
           <AlphaTabView
@@ -174,7 +171,6 @@ function ResultScreen() {
         )}
       </div>
 
-      <ExportPanel />
     </div>
   );
 }

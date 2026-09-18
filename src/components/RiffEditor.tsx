@@ -17,6 +17,9 @@ export function RiffEditor() {
   const a = useStore((s) => s.arrangement);
   const edit = useStore((s) => s.edit);
   const [showAll, setShowAll] = useState(false);
+  // Collapsed by default: the Full tier can produce hundreds of rows, which
+  // buried the score under a table nobody had asked to see.
+  const [open, setOpen] = useState(false);
   // Re-renders when the sounding note changes, not on every animation frame.
   const activeId = useActiveSpanId(a?.riff ?? [], (sec) => (a ? timeToBeat(a, sec) : 0));
   if (!a || a.tier === 'essential') return null;
@@ -52,27 +55,37 @@ export function RiffEditor() {
   }
 
   return (
-    <div className="card space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-slate-200">
-          Riff / melody <span className="text-xs font-normal text-slate-500">({a.riff.length} notes)</span>
-        </h3>
-        <div className="flex gap-2">
-          <button className="btn btn-ghost px-2 py-1 text-xs" onClick={add}>
-            + note
-          </button>
-          {a.riff.length > 0 && (
-            <button
-              className="btn btn-ghost px-2 py-1 text-xs text-red-300"
-              onClick={() => edit((d) => void (d.riff = []))}
-            >
-              Clear riff
+    <div className={`card ${open ? 'space-y-3' : ''}`}>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          className="flex min-w-0 items-center gap-2 text-left"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          <span className="w-3 shrink-0 text-xs text-slate-500">{open ? '▾' : '▸'}</span>
+          <h3 className="truncate font-semibold text-slate-200">
+            Riff / melody <span className="text-xs font-normal text-slate-500">({a.riff.length} notes)</span>
+          </h3>
+        </button>
+        {open && (
+          <div className="flex shrink-0 gap-2">
+            <button className="btn btn-ghost px-2 py-1 text-xs" onClick={add}>
+              + note
             </button>
-          )}
-        </div>
+            {a.riff.length > 0 && (
+              <button
+                className="btn btn-ghost px-2 py-1 text-xs text-red-300"
+                onClick={() => edit((d) => void (d.riff = []))}
+              >
+                Clear riff
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {a.riff.length === 0 ? (
+
+      {!open ? null : a.riff.length === 0 ? (
         <p className="text-sm text-slate-400">
           Nothing melodic came through. Narrow the melody pitch range to the guitar register, lower the note-engine
           confidence, and re-analyse - or add notes by hand.

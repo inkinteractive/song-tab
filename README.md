@@ -109,14 +109,16 @@ One selector, defaulting to Essential.
 6. **Suggest a capo** (or a transposition) that turns awkward chords into open
    shapes.
 7. **Map notes to frets**, minimising hand movement, in any of seven tunings.
-8. **Render** with alphaTab: a slash-notation chord chart with diagrams for
-   Essential, notation + tab for Standard and Full. Playback with a moving
-   cursor, driven either by alphaTab's synth or by the original clip.
+8. **Render** with alphaTab, laid out like the printed chart: **tablature only**,
+   chord names and diagrams above it, systems wrapped down the panel. A guitar
+   teacher reads frets, and the standard-notation staff doubled every system's
+   height to say the same thing twice. A moving cursor shades the sounding bar
+   and draws a line at the beat, driven by whichever source is playing.
 9. **Edit** anything: chords, voicings, note pitches and lengths, tempo, key,
    time signature, tuning, capo, strumming pattern, and whether chords read as
    plain triads or as detected. Undo/redo with ⌘Z / ⌘⇧Z.
-10. **Export**: chord chart (PDF and text), ASCII tab, MusicXML, MIDI, Guitar
-    Pro 7 (`.gp`), alphaTex.
+10. **Export** the printable chord chart as PDF, from the top of the score
+    panel. Diagrams, the bar grid, the strumming pattern and the tab.
 
 Every guess is overridable, and the ones the engine is unsure about say so.
 
@@ -192,6 +194,16 @@ the harmony is right.
 | Ambiguous chords (add9, sus, slash) | The plain triad is shown by default, with "use detected *Xadd9*" one click away. |
 | Tempo half/double errors | Flagged when the two trackers disagree; ×2 and ÷2 buttons sit next to the tempo field. |
 | The recording is off concert pitch | The tuning offset is estimated and reported when it is significant. |
+
+## Exports
+
+The UI offers **one** export: the chord-chart PDF. That is the artefact a lesson
+actually needs, and every other button was clutter around it.
+
+Working exporters for MusicXML, MIDI, Guitar Pro 7 (`.gp`), ASCII tab and
+alphaTex are still in `src/export/`, still covered by tests, and unexposed. The
+PDF embeds the ASCII tab, so that one is on the live path. If you want any of
+the others back in the UI it is a button, not a feature.
 
 ## Playback
 

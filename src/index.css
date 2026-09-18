@@ -15,6 +15,26 @@ body {
   color: #111827;
 }
 
+/*
+ * alphaTab ships no styling for its playback cursor - it creates the elements
+ * and leaves them transparent, so without this the score gives no indication
+ * of where you are. `.at-cursor-bar` shades the bar being played and
+ * `.at-cursor-beat` is the moving line through it.
+ */
+.at-cursor-bar {
+  background: rgba(240, 162, 58, 0.16);
+}
+
+.at-cursor-beat {
+  background: #d97706;
+  width: 2px;
+}
+
+.at-highlight * {
+  fill: #b45309;
+  stroke: #b45309;
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-600 bg-ink-700 px-3 py-2

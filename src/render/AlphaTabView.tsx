@@ -34,6 +34,7 @@ interface Props {
 
 export function AlphaTabView({ arrangement, title, mode, onReady, onError }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const apiRef = useRef<alphaTab.AlphaTabApi | null>(null);
   const [status, setStatus] = useState<'init' | 'ready' | 'failed'>('init');
   const [playerReady, setPlayerReady] = useState(false);
@@ -57,8 +58,13 @@ export function AlphaTabView({ arrangement, title, mode, onReady, onError }: Pro
           enableLazyLoading: false,
         },
         display: {
+          // Page layout wraps systems down the page and reflows to the
+          // container, which is what the printed chart looks like. Horizontal
+          // layout is what put a scrollbar under the panel.
           layoutMode: alphaTab.LayoutMode.Page,
-          scale: 0.9,
+          scale: 0.8,
+          // Fill the width rather than leaving systems short.
+          stretchForce: 1,
         },
         notation: {
           // The React chrome already shows the title block; keep the score clean.
@@ -76,7 +82,7 @@ export function AlphaTabView({ arrangement, title, mode, onReady, onError }: Pro
         player: {
           playerMode: alphaTab.PlayerMode.EnabledAutomatic,
           soundFont: `${ASSET_BASE}soundfont/sonivox.sf3`,
-          scrollElement: host,
+          scrollElement: scrollRef.current ?? host,
           enableCursor: true,
           enableUserInteraction: true,
         },
@@ -183,11 +189,20 @@ export function AlphaTabView({ arrangement, title, mode, onReady, onError }: Pro
           )}
         </div>
       )}
+      {/*
+        The scroll container is the outer element and alphaTab renders into an
+        inner one, so the host's width already excludes the vertical scrollbar.
+        With the host doing its own scrolling, alphaTab measured the full width,
+        the scrollbar then appeared and took ~16px back, and the right edge of
+        every system was clipped by exactly that much.
+      */}
       <div
-        ref={hostRef}
-        className="at-host max-h-[70vh] overflow-auto rounded-lg bg-white p-2"
+        ref={scrollRef}
+        className="max-h-[75vh] overflow-y-auto overflow-x-hidden rounded-lg bg-white p-2"
         style={{ minHeight: status === 'failed' ? 0 : 220 }}
-      />
+      >
+        <div ref={hostRef} className="at-host" />
+      </div>
     </div>
   );
 }

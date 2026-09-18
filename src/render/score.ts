@@ -94,8 +94,6 @@ function fillRest(voice: alphaTab.model.Voice, sixteenths: number): void {
 
 interface ScoreBuildOptions {
   title?: string;
-  /** Render slash notation for the chord track (the Essential-tier look). */
-  chordsAsSlashes?: boolean;
 }
 
 export interface BuiltScore {
@@ -147,13 +145,12 @@ export function buildScore(a: Arrangement, opts: ScoreBuildOptions = {}): BuiltS
   const chordStaff = new M.Staff();
   chordStaff.stringTuning = new M.Tuning('', tuning.slice().reverse(), false);
   chordStaff.capo = a.capo;
-  // Essential tier reads as a chord chart: a single slash staff under the chord
-  // symbols and diagrams. The other tiers show the voicing on a notation + tab
-  // pair, since at that point the teacher is picking the arrangement apart.
-  const slashes = opts.chordsAsSlashes ?? a.tier === 'essential';
-  chordStaff.showSlash = slashes;
-  chordStaff.showStandardNotation = !slashes;
-  chordStaff.showTablature = !slashes;
+  // Tab only, chord names above it - the same shape as the printed chart. A
+  // guitar teacher reads frets, and the standard-notation staff was doubling
+  // every system's height to say the same thing twice.
+  chordStaff.showSlash = false;
+  chordStaff.showStandardNotation = false;
+  chordStaff.showTablature = true;
   chordTrack.addStaff(chordStaff);
 
   // Diagrams live on the staff and are referenced per beat by id.
@@ -192,7 +189,7 @@ export function buildScore(a: Arrangement, opts: ScoreBuildOptions = {}): BuiltS
       }
       const length = Math.min(Math.round(bc.durationBeats * 4), barSixteenths - cursor);
       if (length <= 0) continue;
-      addChordBeats(voice, bc, a, length, slashes);
+      addChordBeats(voice, bc, a, length);
       cursor += length;
     }
     if (cursor < barSixteenths) fillRest(voice, barSixteenths - cursor);
@@ -215,7 +212,7 @@ export function buildScore(a: Arrangement, opts: ScoreBuildOptions = {}): BuiltS
     riffStaff.stringTuning = new M.Tuning('', tuning.slice().reverse(), false);
     riffStaff.capo = a.capo;
     riffStaff.showTablature = true;
-    riffStaff.showStandardNotation = true;
+    riffStaff.showStandardNotation = false;
     riffTrack.addStaff(riffStaff);
 
     bars.forEach((bar) => {
@@ -264,7 +261,6 @@ function addChordBeats(
   bc: BarChord,
   a: Arrangement,
   lengthSixteenths: number,
-  slashed: boolean,
 ): void {
   const shape = resolveShape(bc, a);
   const parts = durationParts(lengthSixteenths);
@@ -275,7 +271,6 @@ function addChordBeats(
     beat.duration = part.duration;
     beat.dots = part.dots;
     beat.chordId = shape.id;
-    beat.slashed = slashed;
     if (pi === 0) {
       // A downward brush reads (and sounds) like a strum rather than a stab.
       beat.brushType = M.BrushType.BrushDown;

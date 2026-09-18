@@ -154,14 +154,21 @@ describe('alphaTab score', () => {
     }
   });
 
-  it('uses slash notation for the Essential tier and a tab staff otherwise', () => {
+  it('shows tablature only, on every tier and every track', () => {
+    // A guitar teacher reads frets; the standard-notation staff doubled each
+    // system's height to say the same thing twice.
     const essential = buildScore(fixture({ tier: 'essential', riff: [] }));
-    expect(essential.score.tracks[0].staves[0].showSlash).toBe(true);
+    const essentialStaff = essential.score.tracks[0].staves[0];
+    expect(essentialStaff.showTablature).toBe(true);
+    expect(essentialStaff.showStandardNotation).toBe(false);
+    expect(essentialStaff.showSlash).toBe(false);
     expect(essential.riffTrack).toBeNull();
 
     const standard = buildScore(fixture());
     expect(standard.riffTrack).not.toBeNull();
-    expect(standard.score.tracks[standard.riffTrack!].staves[0].showTablature).toBe(true);
+    const riffStaff = standard.score.tracks[standard.riffTrack!].staves[0];
+    expect(riffStaff.showTablature).toBe(true);
+    expect(riffStaff.showStandardNotation).toBe(false);
   });
 
   it('places notes on the right strings', () => {
