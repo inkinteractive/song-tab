@@ -14,7 +14,6 @@ import { keyName, midiToName, pitchClassName } from '../music/theory';
 import { patternById, patternToString } from '../music/strumming';
 import { tuningById } from '../music/fretboard';
 import type { Arrangement } from '../types';
-import { TIER_LABELS } from '../types';
 
 const STRING_LABELS_STANDARD = ['E', 'A', 'D', 'G', 'B', 'e'];
 
@@ -33,7 +32,6 @@ function header(a: Arrangement, title: string): string[] {
     lines.push(`Transposed: ${a.transpose > 0 ? '+' : ''}${a.transpose} semitones from the recording`);
   }
   lines.push(`Strum:    ${patternById(a.strumPatternId).name}  |  ${patternToString(patternById(a.strumPatternId))}`);
-  lines.push(`Tier:     ${TIER_LABELS[a.tier].name}`);
   lines.push('');
   return lines;
 }
@@ -136,11 +134,8 @@ export function asciiTab(a: Arrangement, title = 'Simplified tab'): string {
     lines.push('');
   }
 
-  if (a.riff.length === 0 && a.tier !== 'essential') {
+  if (a.riff.length === 0) {
     lines.push('(No riff was extracted - the chord grid above is the arrangement.)');
-  }
-  if (a.tier === 'full') {
-    lines.push('Full tier output is an approximate reference transcription, not a finished part.');
   }
   return lines.join('\n');
 }

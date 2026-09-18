@@ -12,7 +12,6 @@ import type { Arrangement } from '../types';
 
 function fixture(overrides: Partial<Arrangement> = {}): Arrangement {
   return {
-    tier: 'standard',
     tempo: 120,
     beatsPerBar: 4,
     beatUnit: 4,
@@ -136,7 +135,7 @@ describe('MIDI', () => {
   });
 
   it('omits the riff track when there is no riff', () => {
-    const bytes = toMidi(fixture({ riff: [], tier: 'essential' }));
+    const bytes = toMidi(fixture({ riff: [] }));
     expect((bytes[10] << 8) | bytes[11]).toBe(2);
   });
 });
@@ -154,15 +153,15 @@ describe('alphaTab score', () => {
     }
   });
 
-  it('shows tablature only, on every tier and every track', () => {
+  it('shows tablature only, on every track', () => {
     // A guitar teacher reads frets; the standard-notation staff doubled each
     // system's height to say the same thing twice.
-    const essential = buildScore(fixture({ tier: 'essential', riff: [] }));
-    const essentialStaff = essential.score.tracks[0].staves[0];
-    expect(essentialStaff.showTablature).toBe(true);
-    expect(essentialStaff.showStandardNotation).toBe(false);
-    expect(essentialStaff.showSlash).toBe(false);
-    expect(essential.riffTrack).toBeNull();
+    const chordsOnly = buildScore(fixture({ riff: [] }));
+    const chordsOnlyStaff = chordsOnly.score.tracks[0].staves[0];
+    expect(chordsOnlyStaff.showTablature).toBe(true);
+    expect(chordsOnlyStaff.showStandardNotation).toBe(false);
+    expect(chordsOnlyStaff.showSlash).toBe(false);
+    expect(chordsOnly.riffTrack).toBeNull();
 
     const standard = buildScore(fixture());
     expect(standard.riffTrack).not.toBeNull();
@@ -171,10 +170,28 @@ describe('alphaTab score', () => {
     expect(riffStaff.showStandardNotation).toBe(false);
   });
 
+  it('writes chord names over the riff staff, so one staff reads like the PDF', () => {
+    // The page shows the riff track alone; without its own chord map that staff
+    // would be bare frets and the chord changes would only exist on the track
+    // the reader is no longer looking at.
+    const built = buildScore(fixture());
+    const riffStaff = built.score.tracks[built.riffTrack!].staves[0];
+
+    const first = riffStaff.bars[0].voices[0].beats[0];
+    const second = riffStaff.bars[1].voices[0].beats[0];
+    expect(first.chordId).toBeTruthy();
+    expect(second.chordId).toBeTruthy();
+    expect(first.chordId).not.toBe(second.chordId);
+    expect(riffStaff.getChord(first.chordId!)!.name).toBe('C');
+    expect(riffStaff.getChord(second.chordId!)!.name).toBe('Am');
+    // Names only: the diagrams are drawn in the chord chart panel instead.
+    expect(riffStaff.getChord(first.chordId!)!.showDiagram).toBe(false);
+  });
+
   it('places notes on the right strings', () => {
     // alphaTab numbers strings from the lowest, the reverse of MusicXML; if the
     // mapping flips, the tab staff is a mirror image of the real fingering.
-    const built = buildScore(fixture({ tier: 'essential', riff: [] }));
+    const built = buildScore(fixture({ riff: [] }));
     const beat = built.score.tracks[0].staves[0].bars[0].voices[0].beats[0];
     // Open C, x32010, sounds C3 E3 G3 C4 E4.
     const sounding = beat.notes.map((n) => (n as unknown as { realValue: number }).realValue).sort((a, b) => a - b);

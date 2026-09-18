@@ -9,7 +9,6 @@ import { patternById, patternToString } from '../music/strumming';
 import { tuningById } from '../music/fretboard';
 import { asciiTab } from './ascii';
 import type { Arrangement } from '../types';
-import { TIER_LABELS } from '../types';
 import type { ChordShape } from '../music/chordShapes';
 
 const MARGIN = 48;
@@ -117,7 +116,6 @@ export function toPdf(a: Arrangement, title = 'Simplified chord chart'): Blob {
       a.transpose !== 0 ? `   ·   transposed ${a.transpose > 0 ? '+' : ''}${a.transpose}` : ''
     }`,
     `Strum: ${pattern.name}  (${patternToString(pattern)})`,
-    `${TIER_LABELS[a.tier].name} tier — ${TIER_LABELS[a.tier].blurb}`,
   ];
   for (const line of meta) {
     doc.text(line, MARGIN, cur.y);
@@ -190,7 +188,7 @@ export function toPdf(a: Arrangement, title = 'Simplified chord chart'): Blob {
   }
 
   // ---- tab ----------------------------------------------------------------
-  if (a.tier !== 'essential' && a.riff.length > 0) {
+  if (a.riff.length > 0) {
     doc.addPage();
     cur.y = MARGIN;
     doc.setFont('helvetica', 'bold');

@@ -84,15 +84,16 @@ SoundFont all resolve under the project path, and copies `index.html` to
   be a mess. The app is built around that asymmetry rather than pretending
   otherwise.
 
-## Tiers
+## What you get
 
-One selector, defaulting to Essential.
+One output, every time: the chord progression **plus** the main riff or melody
+as tab, so the student gets the recognisable hook over the progression.
 
-| Tier | What you get |
-| --- | --- |
-| **Essential** (default) | Chord chart only: names, open/barre diagrams, a suggested strumming pattern, one chord per bar. The acoustic busking version. |
-| **Standard** | Those chords **plus** the main riff or melody as tab, so the student gets the recognisable hook over the progression. |
-| **Full (reference)** | Polyphonic transcription from Spotify's Basic Pitch, for you to pick apart. Labelled approximate, because it is. |
+There used to be three tiers - chords only, chords plus riff, and a polyphonic
+Basic Pitch transcription. The middle one was the only one anyone chose. Chords
+without the riff is not a teachable arrangement, and the polyphonic dump was a
+reference document rather than something to play, so both were removed along
+with the selector and the ~40MB of TensorFlow.js the top tier pulled in.
 
 ## The pipeline
 
@@ -101,22 +102,24 @@ One selector, defaulting to Essential.
 2. **Trim** to a section on the waveform, with preview playback. Short isolated
    sections analyse far better than a whole track; the default selection is 30
    seconds.
-3. **Detect tempo, beats and key**, then run the engines for the chosen tier.
+3. **Detect tempo, beats and key**, then run the chord and note engines.
 4. **Simplify**: collapse the detected harmony to guitar-friendly voicings, one
    chord per bar unless a mid-bar change is genuinely strong, quantise the riff,
    drop notes below a density threshold.
 5. **Suggest a capo** (or a transposition) that turns awkward chords into open
    shapes.
 6. **Map notes to frets**, minimising hand movement, in any of seven tunings.
-7. **Render** with alphaTab, laid out like the printed chart: **tablature only**,
-   chord names and diagrams above it, systems wrapped down the panel. A guitar
-   teacher reads frets, and the standard-notation staff doubled every system's
-   height to say the same thing twice. A moving cursor shades the sounding bar
-   and draws a line at the beat, driven by whichever source is playing.
+7. **Render** with alphaTab as the same page the PDF prints: **one tablature
+   staff**, chord names written above it, systems wrapped down the panel. A
+   guitar teacher reads frets, so there is no standard-notation staff doubling
+   every system's height to say the same thing twice, and no second staff for
+   the strummed voicings - those are diagrams in the chord chart below and the
+   names over the tab. A moving cursor shades the sounding bar and draws a line
+   at the beat, driven by whichever source is playing.
 8. **Edit** anything: chords, voicings, note pitches and lengths, tempo, key,
    time signature, tuning, capo, strumming pattern, and whether chords read as
    plain triads or as detected. Undo/redo with ⌘Z / ⌘⇧Z.
-9. **Export** the printable chord chart as PDF, from the top of the score
+9. **Export** the printable chord chart as PDF, from the top of the tab
     panel. Diagrams, the bar grid, the strumming pattern and the tab.
 
 Every guess is overridable, and the ones the engine is unsure about say so.
@@ -140,29 +143,21 @@ implementation as a fallback when the WASM bundle cannot load. On top of that:
 
 ### Note engine
 
-**Standard tier** runs a harmonic-sum pitch tracker over a configurable
-register, median-filtered, segmented into notes, quantised, then thinned by
-density so you get a hook rather than every passing note. It is monophonic on
-purpose: the Standard tier wants the line a student can hum.
+A harmonic-sum pitch tracker runs over a configurable register,
+median-filtered, segmented into notes, quantised, then thinned by density so you
+get a hook rather than every passing note. It is monophonic on purpose: the
+arrangement wants the line a student can hum.
 
 Essentia's `PredominantPitchMelodia` is deliberately **not** used. It is built
 for vocal melody over a full mix, and on a guitar register it returned
 near-zero salience pinned to the range boundary; the built-in tracker followed
 the line reliably.
 
-**Full tier** runs Spotify's **Basic Pitch**, which is polyphonic. Two notes on
-how it is wired:
-
-- It uses **TensorFlow.js**, not onnxruntime-web. That is what the package
-  ships, and the model is bundled in it rather than fetched from a CDN, so the
-  Full tier works offline.
-- It runs on the **main thread**, unlike the chord engine. tfjs can only reach
-  WebGL from a document, and the CPU backend is too slow to be useful. It
-  reports progress while it works.
-
-A guitar has six strings and Basic Pitch will happily report denser stacks than
-that, so notes that cannot be voiced are dropped - weakest of each stack first -
-and the count is reported. On the test clip that was 14 of 226.
+Spotify's **Basic Pitch** was wired up for the old Full tier and has been
+removed with it. The score model, exporters and fret mapper are still
+polyphonic - stacked notes become one beat, notes that cannot be voiced on six
+strings are dropped weakest-first - because a hand-edited riff can still stack
+notes even when the tracker does not.
 
 ## Known failure modes, and what the app does about them
 

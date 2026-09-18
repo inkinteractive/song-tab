@@ -1,20 +1,15 @@
 /**
- * Step 3 controls: tier, engine settings, and Analyse.
+ * Step 3 controls: engine settings and Analyse.
  */
 
 import { useState } from 'react';
 import { useStore } from '../state/store';
-import { TIER_LABELS, type Tier } from '../types';
-import { basicPitchAvailability } from '../analysis/basicPitch';
 import { midiToName, parsePitchClass, type KeyMode } from '../music/theory';
 import { SHARP_NAMES } from '../music/theory';
-
-const TIERS: Tier[] = ['essential', 'standard', 'full'];
 
 export function AnalyseSetup() {
   const settings = useStore((s) => s.settings);
   const update = useStore((s) => s.updateSettings);
-  const setTier = useStore((s) => s.setTier);
   const analyse = useStore((s) => s.analyse);
   const analysing = useStore((s) => s.analysing);
   const error = useStore((s) => s.error);
@@ -22,7 +17,6 @@ export function AnalyseSetup() {
   const setTitle = useStore((s) => s.setTitle);
   const [advanced, setAdvanced] = useState(false);
 
-  const bp = basicPitchAvailability();
 
   return (
     <div className="space-y-4">
@@ -34,49 +28,6 @@ export function AnalyseSetup() {
           <input id="title" className="input max-w-md" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
 
-        <div>
-          <span className="label">Output complexity</span>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {TIERS.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTier(t)}
-                className={`rounded-lg border p-3 text-left transition ${
-                  settings.tier === t
-                    ? 'border-amber-450 bg-amber-450/10'
-                    : 'border-ink-600 bg-ink-700 hover:border-ink-500'
-                }`}
-              >
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-                  {TIER_LABELS[t].name}
-                  {t === 'essential' && <span className="chip">default</span>}
-                </div>
-                <p className="mt-1 text-xs text-slate-400">{TIER_LABELS[t].blurb}</p>
-              </button>
-            ))}
-          </div>
-          {settings.tier === 'full' && (
-            <div className="mt-2 space-y-2 rounded-md border border-ink-600 bg-ink-900 px-3 py-2">
-              <label className="flex items-center gap-2 text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  disabled={!bp.available}
-                  checked={settings.useBasicPitch && bp.available}
-                  onChange={(e) => update({ useBasicPitch: e.target.checked })}
-                />
-                Use Basic Pitch (polyphonic)
-              </label>
-              <p className="text-xs text-slate-500">{bp.reason}</p>
-              {!settings.useBasicPitch && (
-                <p className="text-xs text-slate-500">
-                  Off: the Full tier falls back to the phase 1 monophonic tracker, which is faster and will miss
-                  simultaneous voices.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
       </div>
 
       <div className="card">
@@ -197,7 +148,7 @@ export function AnalyseSetup() {
       )}
 
       <button className="btn btn-primary w-full py-3 text-base" disabled={analysing} onClick={() => void analyse()}>
-        {analysing ? 'Analysing…' : `Analyse — ${TIER_LABELS[settings.tier].name}`}
+        {analysing ? 'Analysing…' : 'Analyse'}
       </button>
     </div>
   );

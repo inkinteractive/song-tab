@@ -7,14 +7,13 @@
  */
 
 import { create } from 'zustand';
-import { DEFAULT_SETTINGS, type AnalysisProgress, type AnalysisResult, type AnalysisSettings, type Arrangement, type Tier } from '../types';
+import { DEFAULT_SETTINGS, type AnalysisProgress, type AnalysisResult, type AnalysisSettings, type Arrangement } from '../types';
 import { runAnalysis } from '../analysis/runAnalysis';
-import { dropUnplayableNotes, withFretPositions } from '../music/arrangement';
+import { withFretPositions } from '../music/arrangement';
 import { tuningById } from '../music/fretboard';
 import { simplifyToTriad } from '../music/theory';
 import { bestCapoSuggestion, type CapoSuggestion } from '../music/capo';
 import { chordWeights } from '../analysis/simplify';
-import { basicPitchAvailability, transcribeWithBasicPitch } from '../analysis/basicPitch';
 
 export type Step = 'capture' | 'trim' | 'analyse' | 'edit';
 
@@ -51,7 +50,6 @@ interface State {
   setTrim(start: number, end: number): void;
   setStep(step: Step): void;
   updateSettings(patch: Partial<AnalysisSettings>): void;
-  setTier(tier: Tier): void;
 
   analyse(): Promise<void>;
   cancelAnalysis(): void;
@@ -125,8 +123,6 @@ export const useStore = create<State>((set, get) => ({
 
   updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
 
-  setTier: (tier) => set((s) => ({ settings: { ...s.settings, tier } })),
-
   async analyse() {
     const { audio, trim, settings } = get();
     if (!audio) return;
@@ -143,58 +139,6 @@ export const useStore = create<State>((set, get) => ({
     activeRun = run;
     try {
       const result = await run.promise;
-      // Basic Pitch cannot run in the worker - tfjs needs a document to reach
-      // WebGL - so the Full tier's transcription happens here, on the clip the
-      // worker just analysed, and replaces the monophonic tracker's output.
-      if (settings.tier === 'full' && settings.useBasicPitch && basicPitchAvailability().available) {
-        set({ progress: { phase: 'transcribe', message: 'Transcribing with Basic Pitch…', percent: 0 } });
-        try {
-          const notes = await transcribeWithBasicPitch(
-            clip,
-            sampleRate,
-            {
-              onsetThreshold: settings.noteConfidence,
-              frameThreshold: Math.max(0.05, settings.noteConfidence * 0.7),
-              minNoteLengthMs: 58,
-              minMidi: settings.melodyMinMidi,
-              maxMidi: settings.melodyMaxMidi,
-              beatOffset: result.arrangement.beatOffset,
-              tempo: result.arrangement.tempo,
-              grid: settings.quantiseGrid,
-            },
-            (percent) => {
-              // Basic Pitch reports a fraction, not a percentage.
-              const pct = Math.max(0, Math.min(100, percent <= 1 ? percent * 100 : percent));
-              set({
-                progress: {
-                  phase: 'transcribe',
-                  message: `Transcribing with Basic Pitch… ${Math.round(pct)}%`,
-                  percent: pct,
-                },
-              });
-            },
-          );
-          if (notes && notes.length > 0) {
-            result.arrangement.riff = notes;
-            result.arrangement.notes.push(
-              'Full tier: polyphonic transcription by Basic Pitch. Approximate - expect phantom notes in dense passages.',
-            );
-            withFretPositions(result.arrangement, tuningById(result.arrangement.tuningId).midi);
-            const dropped = dropUnplayableNotes(result.arrangement);
-            if (dropped > 0) {
-              result.arrangement.notes.push(
-                `${dropped} note${dropped === 1 ? '' : 's'} dropped as unplayable: a guitar has six strings, and the model reported denser stacks than that.`,
-              );
-            }
-          } else if (notes && notes.length === 0) {
-            result.arrangement.notes.push('Basic Pitch found no notes; the monophonic tracker output is shown instead.');
-          }
-        } catch (err) {
-          result.arrangement.notes.push(
-            `Basic Pitch did not run (${err instanceof Error ? err.message : String(err)}); showing the monophonic tracker instead.`,
-          );
-        }
-      }
 
       set({
         result,

@@ -165,9 +165,8 @@ export async function analyzeClip(input: AnalyzeInput, onProgress: ProgressFn = 
 
   // ---- melody -------------------------------------------------------------
   let riff: Arrangement['riff'] = [];
-  if (settings.tier !== 'essential') {
+  {
     onProgress({ phase: 'melody', message: 'Tracking the riff / melody line…' });
-    const full = settings.tier === 'full';
     // The note engine is always the built-in harmonic-sum tracker - see the
     // note in `essentia.ts` for why Essentia's melodia is not used here.
     const track = trackPitch(mono, {
@@ -179,17 +178,14 @@ export async function analyzeClip(input: AnalyzeInput, onProgress: ProgressFn = 
     riff = extractRiff(track, {
       beatOffset: beats[0] ?? 0,
       tempo,
-      grid: full ? Math.min(settings.quantiseGrid, 0.25) : settings.quantiseGrid,
-      minConfidence: full ? settings.noteConfidence * 0.7 : settings.noteConfidence,
+      grid: settings.quantiseGrid,
+      minConfidence: settings.noteConfidence,
       minMidi: settings.melodyMinMidi,
       maxMidi: settings.melodyMaxMidi,
       beatsPerBar: settings.beatsPerBar,
-      maxNotesPerBeat: full ? 8 : 2,
+      maxNotesPerBeat: 2,
     });
 
-    // The Full tier's polyphonic pass (Basic Pitch) runs on the main thread -
-    // tfjs cannot reach WebGL from a worker - so the caller layers it on top of
-    // this monophonic result. Nothing to say about it from in here.
     if (riff.length === 0) {
       notes.push('No melodic line stood out. Narrow the pitch range to the guitar register, or lower the note-engine confidence.');
     }
@@ -197,7 +193,6 @@ export async function analyzeClip(input: AnalyzeInput, onProgress: ProgressFn = 
 
   // ---- assemble -----------------------------------------------------------
   const arrangement: Arrangement = {
-    tier: settings.tier,
     tempo,
     beatsPerBar: settings.beatsPerBar,
     beatUnit: 4,

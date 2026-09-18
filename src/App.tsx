@@ -6,13 +6,10 @@ import { CapturePanel } from './components/CapturePanel';
 import { WaveformTrimmer } from './components/WaveformTrimmer';
 import { AnalyseSetup } from './components/AnalyseSetup';
 import { ResultSummary } from './components/ResultSummary';
-import { CapoHelper } from './components/CapoHelper';
 import { ChordChart } from './components/ChordChart';
-import { ShapeStrip } from './components/ShapeStrip';
 import { RiffEditor } from './components/RiffEditor';
 import { PlaybackBar } from './components/PlaybackBar';
 import { PdfExportButton } from './components/PdfExportButton';
-import { TierSwitch } from './components/TierSwitch';
 import type { CursorMode } from './render/AlphaTabView';
 import type { PlaybackSource } from './components/PlaybackBar';
 
@@ -57,14 +54,7 @@ export function App() {
           <h2 className="text-lg font-semibold text-slate-100">Analysing…</h2>
           <p className="text-sm text-slate-400">{progress?.message ?? 'Working…'}</p>
           <div className="h-2 overflow-hidden rounded-full bg-ink-900">
-            {progress?.phase === 'transcribe' && typeof progress.percent === 'number' ? (
-              <div
-                className="h-full rounded-full bg-amber-450 transition-[width]"
-                style={{ width: `${Math.max(2, Math.min(100, progress.percent))}%` }}
-              />
-            ) : (
-              <div className="h-full w-1/3 animate-pulse rounded-full bg-amber-450" />
-            )}
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-amber-450" />
           </div>
           <p className="text-xs text-slate-500">
             Chroma over a 30 second clip is a few thousand FFTs. It runs in a worker, so the page stays responsive.
@@ -76,13 +66,6 @@ export function App() {
       )}
 
       {step === 'edit' && <ResultScreen />}
-
-      <footer className="mt-10 border-t border-ink-700 pt-4 text-xs text-slate-600">
-        <p>
-          Everything runs in this browser - no upload, no login. The output is a playable reduction, not a faithful
-          transcription, and it is meant to be edited before you teach from it.
-        </p>
-      </footer>
     </div>
   );
 }
@@ -122,36 +105,14 @@ function ResultScreen() {
     <div className="space-y-4">
       <PlaybackBar api={api} source={source} onSourceChange={setSource} />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <TierSwitch />
-        <div className="flex gap-2">
-          <button className="btn btn-ghost px-2 py-1 text-xs" onClick={undo} disabled={past.length === 0}>
-            ↶ Undo
-          </button>
-          <button className="btn btn-ghost px-2 py-1 text-xs" onClick={redo} disabled={future.length === 0}>
-            ↷ Redo
-          </button>
-        </div>
-      </div>
-
-      {/* What it heard on the left; shapes over the capo helper on the right. */}
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <ResultSummary />
-        <div className="space-y-4">
-          <ShapeStrip />
-          <CapoHelper />
-        </div>
-      </div>
-
-      <ChordChart />
-      <RiffEditor />
-
+      {/* The tab sits directly under the transport - it is what you read while
+          the clip plays, so nothing should come between them. */}
       <div className="card">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <h3 className="font-semibold text-slate-200">Score</h3>
+          <h3 className="font-semibold text-slate-200">Tab</h3>
           <PdfExportButton />
         </div>
-        <Suspense fallback={<p className="text-sm text-slate-500">Loading the score renderer…</p>}>
+        <Suspense fallback={<p className="text-sm text-slate-500">Loading the tab renderer…</p>}>
           <AlphaTabView
             arrangement={a}
             title={title}
@@ -171,6 +132,18 @@ function ResultScreen() {
         )}
       </div>
 
+      <div className="flex items-center justify-end gap-2">
+        <button className="btn btn-ghost px-2 py-1 text-xs" onClick={undo} disabled={past.length === 0}>
+          ↶ Undo
+        </button>
+        <button className="btn btn-ghost px-2 py-1 text-xs" onClick={redo} disabled={future.length === 0}>
+          ↷ Redo
+        </button>
+      </div>
+
+      <ChordChart />
+      <ResultSummary />
+      <RiffEditor />
     </div>
   );
 }

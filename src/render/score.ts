@@ -13,7 +13,6 @@ import { patternById, patternToString } from '../music/strumming';
 import { tuningById } from '../music/fretboard';
 import type { Arrangement, BarChord, RiffNote } from '../types';
 import type { RiffGroup } from '../music/arrangement';
-import { TIER_LABELS } from '../types';
 
 const M = alphaTab.model;
 
@@ -115,7 +114,7 @@ export function buildScore(a: Arrangement, opts: ScoreBuildOptions = {}): BuiltS
   score.title = opts.title ?? 'Simplified arrangement';
   score.subTitle = `${keyName({ tonic: (a.key.tonic + a.transpose + 12) % 12, mode: a.key.mode })} · ${Math.round(
     a.tempo,
-  )} BPM · ${TIER_LABELS[a.tier].name}`;
+  )} BPM`;
   score.artist = a.capo > 0 ? `Capo fret ${a.capo}` : '';
   score.words = `Strum: ${pattern.name} (${patternToString(pattern)})`;
   score.notices = a.notes.join('  |  ');
@@ -198,9 +197,9 @@ export function buildScore(a: Arrangement, opts: ScoreBuildOptions = {}): BuiltS
 
   // ---- riff track ---------------------------------------------------------
   let riffTrackIndex: number | null = null;
-  if (a.tier !== 'essential' && a.riff.length > 0) {
+  if (a.riff.length > 0) {
     const riffTrack = new M.Track();
-    riffTrack.name = a.tier === 'full' ? 'Transcription (approximate)' : 'Riff / melody';
+    riffTrack.name = 'Riff / melody';
     riffTrack.shortName = 'Riff';
     riffTrack.playbackInfo.program = 25;
     riffTrack.playbackInfo.primaryChannel = 2;
@@ -214,6 +213,24 @@ export function buildScore(a: Arrangement, opts: ScoreBuildOptions = {}): BuiltS
     riffStaff.showTablature = true;
     riffStaff.showStandardNotation = false;
     riffTrack.addStaff(riffStaff);
+
+    // The printed page is one tab staff with chord names written above it. The
+    // riff staff carries those names, so it can stand alone exactly like the
+    // PDF: name only, no diagram - the diagrams live in the chord chart.
+    for (const { shape, name } of uniqueShapes(a)) {
+      const chord = new M.Chord();
+      chord.name = name;
+      chord.firstFret = Math.max(1, shape.baseFret);
+      chord.strings = shape.frets
+        .slice()
+        .reverse()
+        .map((f) => (f === null ? -1 : f));
+      chord.barreFrets = shape.barre ? [shape.barre.fret] : [];
+      chord.showName = true;
+      chord.showDiagram = false;
+      chord.showFingering = false;
+      if (!riffStaff.hasChord(shape.id)) riffStaff.addChord(shape.id, chord);
+    }
 
     bars.forEach((bar) => {
       const atBar = new M.Bar();
@@ -239,6 +256,7 @@ export function buildScore(a: Arrangement, opts: ScoreBuildOptions = {}): BuiltS
       }
       if (cursor < barSixteenths) fillRest(voice, barSixteenths - cursor);
       if (voice.beats.length === 0) fillRest(voice, barSixteenths);
+      labelChords(voice, bar.chords, bar.startBeat, a);
     });
   }
 
@@ -254,6 +272,44 @@ export function buildScore(a: Arrangement, opts: ScoreBuildOptions = {}): BuiltS
     riffTrack: riffTrackIndex,
     barStartBeats: bars.map((b) => b.startBeat),
   };
+}
+
+/** Length of a written beat, in sixteenths. */
+function beatSixteenths(beat: alphaTab.model.Beat): number {
+  const base = 16 / (beat.duration as unknown as number);
+  return beat.dots === 2 ? base * 1.75 : beat.dots === 1 ? base * 1.5 : base;
+}
+
+/**
+ * Writes chord names over the riff staff, at the beat each chord starts under.
+ *
+ * The riff is written from note onsets and the chords from the chroma grid, so
+ * the two rarely share a beat boundary; the name goes on whichever beat is
+ * sounding when the chord changes, which is where the printed chart puts it.
+ */
+function labelChords(
+  voice: alphaTab.model.Voice,
+  chords: BarChord[],
+  barStartBeat: number,
+  a: Arrangement,
+): void {
+  if (chords.length === 0) return;
+  const starts = chords
+    .map((bc) => ({ at: Math.round((bc.startBeat - barStartBeat) * 4), id: resolveShape(bc, a).id }))
+    .sort((x, y) => x.at - y.at);
+
+  let position = 0;
+  let next = 0;
+  for (const beat of voice.beats) {
+    const length = beatSixteenths(beat);
+    while (next < starts.length && starts[next].at < position + length) {
+      // Several chords inside one long beat collapse to the first; the chart
+      // panel below still lists every one of them.
+      if (!beat.chordId) beat.chordId = starts[next].id;
+      next++;
+    }
+    position += length;
+  }
 }
 
 function addChordBeats(

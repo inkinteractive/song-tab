@@ -17,12 +17,12 @@ export function RiffEditor() {
   const a = useStore((s) => s.arrangement);
   const edit = useStore((s) => s.edit);
   const [showAll, setShowAll] = useState(false);
-  // Collapsed by default: the Full tier can produce hundreds of rows, which
+  // Collapsed by default: a busy clip can produce hundreds of rows, which
   // buried the score under a table nobody had asked to see.
   const [open, setOpen] = useState(false);
   // Re-renders when the sounding note changes, not on every animation frame.
   const activeId = useActiveSpanId(a?.riff ?? [], (sec) => (a ? timeToBeat(a, sec) : 0));
-  if (!a || a.tier === 'essential') return null;
+  if (!a) return null;
 
   const flats = preferFlats(a);
   const tuning = tuningOf(a);

@@ -1,22 +1,5 @@
 import type { Chord, MusicalKey } from './music/theory';
 
-export type Tier = 'essential' | 'standard' | 'full';
-
-export const TIER_LABELS: Record<Tier, { name: string; blurb: string }> = {
-  essential: {
-    name: 'Essential',
-    blurb: 'Chord chart only - names, diagrams and a strumming pattern. The acoustic busking version.',
-  },
-  standard: {
-    name: 'Standard',
-    blurb: 'Those chords plus the main riff or melody as tab, so the hook is in there.',
-  },
-  full: {
-    name: 'Full (reference)',
-    blurb: 'Best-effort note-for-note transcription to pick apart. Always approximate.',
-  },
-};
-
 /** A chord placed on the bar grid. */
 export interface BarChord {
   id: string;
@@ -44,7 +27,6 @@ export interface RiffNote {
 }
 
 export interface Arrangement {
-  tier: Tier;
   tempo: number;
   beatsPerBar: number;
   /** Denominator of the time signature (4 = quarter-note beats). */
@@ -68,7 +50,6 @@ export interface Arrangement {
 }
 
 export interface AnalysisSettings {
-  tier: Tier;
   /** 'simple' = maj/min only, 'standard' = +7ths/sus, 'rich' = everything. */
   vocabulary: 'simple' | 'standard' | 'rich';
   /** Show the detected extended chord rather than its plain triad. */
@@ -89,12 +70,9 @@ export interface AnalysisSettings {
   /** Optional overrides - null means "use what was detected". */
   tempoOverride: number | null;
   keyOverride: MusicalKey | null;
-  /** Full tier: run Basic Pitch instead of the monophonic tracker. */
-  useBasicPitch: boolean;
 }
 
 export const DEFAULT_SETTINGS: AnalysisSettings = {
-  tier: 'essential',
   vocabulary: 'standard',
   richChords: false,
   chromaMinMidi: 40,
@@ -107,7 +85,6 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   beatsPerBar: 4,
   tempoOverride: null,
   keyOverride: null,
-  useBasicPitch: true,
 };
 
 export interface AnalysisResult {
@@ -131,6 +108,5 @@ export type AnalysisProgress =
   | { phase: 'rhythm'; message: string }
   | { phase: 'chords'; message: string }
   | { phase: 'melody'; message: string }
-  | { phase: 'transcribe'; message: string; percent?: number }
   | { phase: 'simplify'; message: string }
   | { phase: 'done'; message: string };

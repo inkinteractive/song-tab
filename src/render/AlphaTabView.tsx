@@ -122,12 +122,11 @@ export function AlphaTabView({ arrangement, title, mode, onReady, onError }: Pro
     setStatus((s) => (s === 'failed' ? s : 'init'));
     try {
       const built = buildScore(arrangement, { title });
-      // Without explicit indexes alphaTab renders only the first track, which
-      // would drop the riff staff on the Standard and Full tiers.
-      api.renderScore(
-        built.score,
-        built.score.tracks.map((t) => t.index),
-      );
+      // One staff, chord names above it - the same page the PDF prints. The
+      // chord track stays in the score so the synth still strums it and the
+      // exporters still write it; it just is not a second staff to read.
+      const visible = built.riffTrack ?? built.chordTrack;
+      api.renderScore(built.score, [visible]);
     } catch (err) {
       setStatus('failed');
       const text = err instanceof Error ? err.message : String(err);

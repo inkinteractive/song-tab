@@ -7,11 +7,11 @@
  * onto a second line.
  */
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useStore } from '../state/store';
 import { TUNINGS } from '../music/fretboard';
 import { STRUM_PATTERNS, patternById, patternToString } from '../music/strumming';
-import { keyName, SHARP_NAMES, parsePitchClass, type KeyMode } from '../music/theory';
+import { keyName, SHARP_NAMES, parsePitchClass, simplifyToTriad, type KeyMode } from '../music/theory';
 import { progressionSummary } from '../music/arrangement';
 
 function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
@@ -33,6 +33,9 @@ export function ResultSummary() {
   const analyse = useStore((s) => s.analyse);
   const setRichChords = useStore((s) => s.setRichChords);
   const setStep = useStore((s) => s.setStep);
+  // Collapsed by default: these are overrides for guesses that are usually
+  // right, and the tab is what you came for.
+  const [open, setOpen] = useState(false);
   if (!result || !a) return null;
 
   const pattern = patternById(a.strumPatternId);
@@ -46,10 +49,20 @@ export function ResultSummary() {
   );
 
   return (
-    <div className="card space-y-4">
-      <div className="space-y-2">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-lg font-semibold text-slate-100">What it heard</h2>
+    <div className={`card ${open ? 'space-y-4' : ''}`}>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          className="flex min-w-0 items-center gap-2 text-left"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          <span className="w-3 shrink-0 text-xs text-slate-500">{open ? '▾' : '▸'}</span>
+          <h2 className="truncate text-lg font-semibold text-slate-100">What it heard</h2>
+          {!open && (
+            <span className="truncate font-mono text-sm text-amber-450">{progressionSummary(a)}</span>
+          )}
+        </button>
+        {open && (
           <div className="flex shrink-0 gap-1 text-xs">
             <button className="btn btn-ghost px-2 py-1 text-xs" onClick={() => setStep('trim')}>
               Re-trim
@@ -58,7 +71,12 @@ export function ResultSummary() {
               Re-analyse
             </button>
           </div>
-        </div>
+        )}
+      </div>
+
+      {!open ? null : (
+        <>
+      <div className="space-y-2">
         <p className="line-clamp-2 font-mono text-sm text-amber-450">{progressionSummary(a)}</p>
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <span className="chip whitespace-nowrap">
@@ -173,6 +191,10 @@ export function ResultSummary() {
           </select>
         </Field>
 
+        {/* Only worth showing when the engine actually detected something
+            richer than the triad on screen - otherwise it is a control that
+            demonstrably does nothing. */}
+        {a.chords.some((c) => c.detected && c.detected.quality !== simplifyToTriad(c.detected).quality) && (
         <Field label="Chords" hint="the triad is the teachable default">
           <div className="flex rounded-md border border-ink-600 p-0.5 text-xs">
             {[
@@ -191,6 +213,7 @@ export function ResultSummary() {
             ))}
           </div>
         </Field>
+        )}
 
         <Field
           label="Strum"
@@ -220,6 +243,8 @@ export function ResultSummary() {
             <li key={i}>• {n}</li>
           ))}
         </ul>
+      )}
+        </>
       )}
     </div>
   );

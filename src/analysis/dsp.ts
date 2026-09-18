@@ -459,7 +459,7 @@ export interface PitchTrack {
  * Harmonic-sum pitch tracking.
  *
  * Deliberately monophonic: it looks for the single strongest melodic line in a
- * register window, which is what the "main riff" tier needs.
+ * register window, which is what the main riff needs.
  */
 export function trackPitch(signal: Float32Array, opts: PitchTrackOptions): PitchTrack {
   const sampleRate = opts.sampleRate;

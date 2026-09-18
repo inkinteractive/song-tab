@@ -1,5 +1,5 @@
 /**
- * The Essential-tier output and the main editing surface: a bar grid of chord
+ * The chart a teacher hands over, and the main editing surface: a bar grid of chord
  * names. Click a bar to change the chord, its voicing, or to split/clear it.
  */
 
@@ -129,25 +129,25 @@ export function ChordChart() {
             <div
               key={bar.index}
               role="listitem"
-              className="relative min-h-[72px] w-[124px] shrink-0 rounded-md border border-ink-600 bg-ink-900 p-2"
+              className="relative min-h-[132px] w-[140px] shrink-0 rounded-md border border-ink-600 bg-ink-900 p-2"
             >
               <span className="absolute left-1.5 top-1 text-[10px] text-slate-600">{bar.index + 1}</span>
               {bar.chords.length === 0 ? (
                 <button
-                  className="mt-4 w-full text-center text-sm text-slate-600 hover:text-amber-450"
+                  className="mt-10 w-full text-center text-sm text-slate-600 hover:text-amber-450"
                   onClick={() => addChordToBar(bar.startBeat)}
                 >
                   + add chord
                 </button>
               ) : (
-                <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
+                <div className="mt-4 flex flex-wrap items-start justify-center gap-1.5">
                   {bar.chords.map((c) => (
                     <button
                       key={c.id}
                       data-chord-id={c.id}
                       onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
                       className={[
-                        'rounded px-2 py-1 text-lg font-semibold transition-colors duration-75',
+                        'rounded px-1 pb-1 pt-0.5 transition-colors duration-75',
                         c.id === activeId ? 'bg-amber-450 text-ink-900' : 'text-slate-100 hover:bg-ink-700',
                         c.id === selectedId ? 'ring-2 ring-amber-450' : '',
                         c.confidence < 0.25 ? 'opacity-60' : '',
@@ -158,7 +158,17 @@ export function ChordChart() {
                           : undefined
                       }
                     >
-                      {displayName(c, a)}
+                      <span className="block text-center text-lg font-semibold leading-tight">
+                        {displayName(c, a)}
+                      </span>
+                      {/* The shape belongs next to the name it plays, not in a
+                          separate legend you have to cross-reference. */}
+                      <ChordDiagram
+                        shape={resolveShape(c, a)}
+                        width={bar.chords.length > 1 ? 52 : 64}
+                        fretRows={4}
+                        compact
+                      />
                     </button>
                   ))}
                 </div>

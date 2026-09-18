@@ -260,7 +260,7 @@ function tabPartMeasures(a: Arrangement, flats: boolean): string {
       if (i === 0) lines.push(attributesXml(a, true));
       let cursor = 0;
       // Notes that start together are one stacked event, not a run of
-      // overlapping ones - the Full tier's transcription is polyphonic.
+      // overlapping ones - a hand-edited riff can stack notes.
       for (const group of groupRiffIntoChords(bar.notes)) {
         const offset = Math.round((group.startBeat - bar.startBeat) * DIVISIONS);
         if (offset > cursor) {
@@ -300,7 +300,7 @@ function tabPartMeasures(a: Arrangement, flats: boolean): string {
 
 export function toMusicXml(a: Arrangement, title = 'Simplified arrangement'): string {
   const flats = preferFlats(a);
-  const includeTab = a.tier !== 'essential' && a.riff.length > 0;
+  const includeTab = a.riff.length > 0;
   const first = a.chords[0];
   const subtitle = first ? `Starts on ${displayName(first, a)}${a.capo ? ` (capo ${a.capo})` : ''}` : '';
 

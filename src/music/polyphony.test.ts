@@ -16,7 +16,6 @@ function note(id: string, startBeat: number, midi: number, durationBeats = 1): R
 
 function fixture(riff: RiffNote[]): Arrangement {
   return {
-    tier: 'full',
     tempo: 120,
     beatsPerBar: 4,
     beatUnit: 4,

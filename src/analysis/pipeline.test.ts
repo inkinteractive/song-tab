@@ -98,7 +98,7 @@ describe('chord pipeline', () => {
 });
 
 describe('note engine', () => {
-  it('extracts a playable riff for the Standard tier', async () => {
+  it('extracts a playable riff', async () => {
     const samples = synthesizeProgression({
       sampleRate: SR,
       tempo: 100,
@@ -115,7 +115,7 @@ describe('note engine', () => {
     const result = await analyzeClip({
       samples,
       sampleRate: SR,
-      settings: { ...DEFAULT_SETTINGS, tier: 'standard', melodyMinMidi: 64, melodyMaxMidi: 84 },
+      settings: { ...DEFAULT_SETTINGS, melodyMinMidi: 64, melodyMaxMidi: 84 },
     });
     const riff = result.arrangement.riff;
     expect(riff.length).toBeGreaterThan(8);
@@ -133,18 +133,6 @@ describe('note engine', () => {
     expect(matching / riff.length).toBeGreaterThan(0.75);
   }, 90000);
 
-  it('leaves the riff empty on the Essential tier', async () => {
-    const samples = synthesizeProgression({
-      sampleRate: SR,
-      tempo: 100,
-      beatsPerBar: 4,
-      progression: CASES[0].progression,
-      repeats: 1,
-      melody: [[69, 1]],
-    });
-    const result = await analyzeClip({ samples, sampleRate: SR, settings: { ...DEFAULT_SETTINGS } });
-    expect(result.arrangement.riff).toHaveLength(0);
-  }, 90000);
 });
 
 describe('capo naming', () => {
