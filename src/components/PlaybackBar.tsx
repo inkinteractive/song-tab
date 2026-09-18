@@ -15,7 +15,7 @@ import type * as alphaTab from '@coderline/alphatab';
 import { useStore } from '../state/store';
 import { sliceMono } from '../audio/buffer';
 import { createClipPlayer, type ClipPlayer } from '../audio/player';
-import { setPlayheadSeconds, usePlayheadSeconds } from '../state/playhead';
+import { setPlayheadPlaying, setPlayheadSeconds, usePlayheadSeconds } from '../state/playhead';
 
 export type PlaybackSource = 'clip' | 'guitar' | 'synth';
 
@@ -38,9 +38,16 @@ export function PlaybackBar({ api, source, onSourceChange }: Props) {
   const [speed, setSpeed] = useState(1);
   const [loop, setLoop] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [guitarHint, setGuitarHint] = useState(false);
   const position = usePlayheadSeconds() ?? 0;
 
   const guitarReady = isolated !== null;
+
+  // Views that follow the playhead need to know when to stop following.
+  useEffect(() => {
+    setPlayheadPlaying(playing);
+    return () => setPlayheadPlaying(false);
+  }, [playing]);
 
   // Rebuild the audio player when the source, the selection or the stem changes.
   useEffect(() => {
@@ -148,17 +155,17 @@ export function PlaybackBar({ api, source, onSourceChange }: Props) {
   }
 
   const total = duration || (a?.clipDuration ?? 0);
-  const sources: { id: PlaybackSource; label: string; enabled: boolean; title: string }[] = [
-    { id: 'clip', label: 'Original clip', enabled: true, title: 'The audio as captured' },
+  const sources: { id: PlaybackSource; label: string; ready: boolean; title: string }[] = [
+    { id: 'clip', label: 'Original clip', ready: true, title: 'The audio as captured' },
     {
       id: 'guitar',
       label: 'Guitar',
-      enabled: guitarReady,
+      ready: guitarReady,
       title: guitarReady
         ? `Isolated ${isolated!.stem} stem (${isolated!.model})`
-        : 'Isolate the guitar first, on the Analyse step, to hear just the stem',
+        : 'No isolated stem yet - click to find out what it needs',
     },
-    { id: 'synth', label: 'Synth', enabled: true, title: "alphaTab playing the arrangement" },
+    { id: 'synth', label: 'Synth', ready: true, title: 'alphaTab playing the arrangement' },
   ];
 
   return (
@@ -168,14 +175,20 @@ export function PlaybackBar({ api, source, onSourceChange }: Props) {
           <button
             key={s.id}
             title={s.title}
-            disabled={!s.enabled}
             onClick={() => {
+              // A dead greyed-out button tells you nothing. Clicking an
+              // unavailable source explains what it would take instead.
+              if (!s.ready) {
+                setGuitarHint(true);
+                return;
+              }
+              setGuitarHint(false);
               stop();
               onSourceChange(s.id);
             }}
             className={`rounded px-2 py-1 transition ${
               source === s.id ? 'bg-amber-450 text-ink-900' : 'text-slate-400 hover:text-slate-200'
-            } ${s.enabled ? '' : 'cursor-not-allowed opacity-40'}`}
+            } ${s.ready ? '' : 'opacity-50'}`}
           >
             {s.label}
           </button>
@@ -206,7 +219,7 @@ export function PlaybackBar({ api, source, onSourceChange }: Props) {
         onChange={(e) => seek(Number(e.target.value))}
         className="min-w-[140px] flex-1 accent-amber-450"
       />
-      <span className="w-20 font-mono text-xs tabular-nums text-slate-400">
+      <span className="shrink-0 whitespace-nowrap font-mono text-xs tabular-nums text-slate-400">
         {position.toFixed(1)} / {total.toFixed(1)}s
       </span>
 
@@ -222,6 +235,18 @@ export function PlaybackBar({ api, source, onSourceChange }: Props) {
           </button>
         ))}
       </div>
+
+      {guitarHint && !guitarReady && (
+        <div className="w-full rounded-md border border-amber-450/50 bg-amber-450/10 px-3 py-2 text-xs text-amber-100">
+          <strong>No isolated guitar yet.</strong> Separation runs Demucs, which needs the service in{' '}
+          <code className="font-mono">server/</code> running on your own machine - it cannot run from the hosted site
+          or in the browser. Start it, put its URL on the Analyse step, and press <em>Isolate now</em>. Until then,
+          "Original clip" is the recording and "Synth" is the arrangement played back.
+          <button className="ml-2 underline" onClick={() => setGuitarHint(false)}>
+            dismiss
+          </button>
+        </div>
+      )}
     </div>
   );
 }

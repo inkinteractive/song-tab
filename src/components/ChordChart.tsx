@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { displayName, resolveShape, shapeOptions, soundingName, timeToBeat, toBars } from '../music/arrangement';
-import { useActiveSpanId } from '../state/playhead';
+import { getPlayheadSeconds, isPlayheadPlaying, useActiveSpanId } from '../state/playhead';
 import { ChordDiagram } from '../render/ChordDiagram';
 import { QUALITY_SUFFIX, SHARP_NAMES, chordName, parsePitchClass, type ChordQuality } from '../music/theory';
 import type { BarChord } from '../types';
@@ -23,15 +23,40 @@ export function ChordChart() {
   // sounding chord actually changes.
   const activeId = useActiveSpanId(a?.chords ?? [], (sec) => (a ? timeToBeat(a, sec) : 0));
 
-  // Keep the sounding bar in view as the chart plays.
+  // Keep the playhead in view as the chart plays.
+  //
+  // This used to jump once per chord with `behavior: 'smooth'`, which fell
+  // behind: a smooth scroll takes a few hundred milliseconds, a bar at any
+  // brisk tempo takes barely longer, and a chord held over several bars did not
+  // scroll at all - so the highlight walked off the right-hand edge. The strip
+  // is now scrolled continuously from the playhead, a frame at a time, which
+  // cannot lag because it is not animating towards anything.
   useEffect(() => {
-    if (!activeId) return;
     const strip = stripRef.current;
-    const target = strip?.querySelector<HTMLElement>(`[data-chord-id="${CSS.escape(activeId)}"]`);
-    if (!strip || !target) return;
-    const offset = target.offsetLeft - strip.clientWidth / 2 + target.clientWidth / 2;
-    strip.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
-  }, [activeId]);
+    if (!strip || !a) return;
+    let raf = 0;
+    const follow = () => {
+      raf = requestAnimationFrame(follow);
+      if (!isPlayheadPlaying()) return;
+      const seconds = getPlayheadSeconds();
+      if (seconds === null) return;
+
+      const barPosition = timeToBeat(a, seconds) / a.beatsPerBar;
+      const bars = strip.children;
+      if (bars.length === 0) return;
+      const index = Math.max(0, Math.min(bars.length - 1, Math.floor(barPosition)));
+      const bar = bars[index] as HTMLElement;
+      const fraction = Math.max(0, Math.min(1, barPosition - index));
+
+      // Centre the playhead itself, not the bar, so the motion is even rather
+      // than stepping once per bar.
+      const x = bar.offsetLeft + bar.clientWidth * fraction;
+      const target = x - strip.clientWidth / 2;
+      strip.scrollLeft = Math.max(0, Math.min(strip.scrollWidth - strip.clientWidth, target));
+    };
+    raf = requestAnimationFrame(follow);
+    return () => cancelAnimationFrame(raf);
+  }, [a]);
 
   if (!a) return null;
   const bars = toBars(a);

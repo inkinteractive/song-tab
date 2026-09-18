@@ -14,6 +14,7 @@
 import { useSyncExternalStore } from 'react';
 
 let seconds: number | null = null;
+let playing = false;
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -36,6 +37,21 @@ export function setPlayheadSeconds(next: number | null): void {
 
 export function getPlayheadSeconds(): number | null {
   return seconds;
+}
+
+/**
+ * Whether audio is actually running. Views that follow the playhead use this to
+ * stay out of the way when it is not - auto-scrolling a paused chart would
+ * fight the teacher trying to scroll it by hand.
+ */
+export function setPlayheadPlaying(next: boolean): void {
+  if (playing === next) return;
+  playing = next;
+  emit();
+}
+
+export function isPlayheadPlaying(): boolean {
+  return playing;
 }
 
 export interface Span {
