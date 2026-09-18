@@ -6,7 +6,15 @@
  * note so MuseScore renders real tab rather than a bare treble line.
  */
 
-import { displayName, preferFlats, resolveShape, soundingChord, toBars, tuningOf } from '../music/arrangement';
+import {
+  displayName,
+  groupRiffIntoChords,
+  preferFlats,
+  resolveShape,
+  soundingChord,
+  toBars,
+  tuningOf,
+} from '../music/arrangement';
 import { FLAT_NAMES, QUALITY_SUFFIX, SHARP_NAMES, type ChordQuality } from '../music/theory';
 import { shapeMidiNotes } from '../music/chordShapes';
 import type { Arrangement } from '../types';
@@ -251,30 +259,35 @@ function tabPartMeasures(a: Arrangement, flats: boolean): string {
       const lines: string[] = [`    <measure number="${i + 1}">`];
       if (i === 0) lines.push(attributesXml(a, true));
       let cursor = 0;
-      for (const n of bar.notes.slice().sort((x, y) => x.startBeat - y.startBeat)) {
-        const offset = Math.round((n.startBeat - bar.startBeat) * DIVISIONS);
+      // Notes that start together are one stacked event, not a run of
+      // overlapping ones - the Full tier's transcription is polyphonic.
+      for (const group of groupRiffIntoChords(bar.notes)) {
+        const offset = Math.round((group.startBeat - bar.startBeat) * DIVISIONS);
         if (offset > cursor) {
           lines.push(restXml(offset - cursor));
           cursor = offset;
         }
-        const durDivs = Math.max(1, Math.min(Math.round(n.durationBeats * DIVISIONS), barDivs - cursor));
         if (barDivs - cursor <= 0) break;
-        // MusicXML numbers string 1 as the highest sounding string.
-        const technical =
-          n.string !== undefined && n.fret !== undefined
-            ? `<technical><string>${stringCount - n.string}</string><fret>${n.fret}</fret></technical>`
-            : '';
+        const durDivs = Math.max(1, Math.min(Math.round(group.durationBeats * DIVISIONS), barDivs - cursor));
         const values = splitDuration(durDivs);
         values.forEach((value, vi) => {
-          lines.push(
-            noteXml({
-              pitch: pitchXml(n.midi + a.transpose, flats),
-              value,
-              index: vi,
-              total: values.length,
-              technical: vi === 0 ? technical : '',
-            }),
-          );
+          group.notes.forEach((n, ni) => {
+            // MusicXML numbers string 1 as the highest sounding string.
+            const technical =
+              n.string !== undefined && n.fret !== undefined
+                ? `<technical><string>${stringCount - n.string}</string><fret>${n.fret}</fret></technical>`
+                : '';
+            lines.push(
+              noteXml({
+                pitch: pitchXml(n.midi + a.transpose, flats),
+                value,
+                index: vi,
+                total: values.length,
+                chordFlag: ni > 0,
+                technical: vi === 0 ? technical : '',
+              }),
+            );
+          });
           cursor += value.divs;
         });
       }

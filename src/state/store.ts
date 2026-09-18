@@ -9,13 +9,33 @@
 import { create } from 'zustand';
 import { DEFAULT_SETTINGS, type AnalysisProgress, type AnalysisResult, type AnalysisSettings, type Arrangement, type Tier } from '../types';
 import { runAnalysis } from '../analysis/runAnalysis';
-import { withFretPositions } from '../music/arrangement';
+import { dropUnplayableNotes, withFretPositions } from '../music/arrangement';
 import { tuningById } from '../music/fretboard';
+import { simplifyToTriad } from '../music/theory';
 import { bestCapoSuggestion, type CapoSuggestion } from '../music/capo';
 import { chordWeights } from '../analysis/simplify';
-import { DEFAULT_SEPARATION, type SeparationConfig } from '../analysis/separation';
+import {
+  DEFAULT_SEPARATION,
+  probeService,
+  separateStem,
+  type SeparationConfig,
+  type ServiceHealth,
+} from '../analysis/separation';
+import { encodeWav, toMono } from '../audio/buffer';
+import { decodeToBuffer } from '../audio/capture';
+import { basicPitchAvailability, transcribeWithBasicPitch } from '../analysis/basicPitch';
 
 export type Step = 'capture' | 'trim' | 'analyse' | 'edit';
+
+/** A separated stem of the current trim, ready to analyse or listen to. */
+export interface IsolatedStem {
+  mono: Float32Array;
+  sampleRate: number;
+  stem: string;
+  model: string;
+  /** The trim it was produced from, so a re-trim invalidates it. */
+  trim: { start: number; end: number };
+}
 
 export interface ClipAudio {
   mono: Float32Array;
@@ -39,6 +59,11 @@ interface State {
   error: string | null;
   result: AnalysisResult | null;
 
+  isolating: boolean;
+  isolationError: string | null;
+  isolated: IsolatedStem | null;
+  serviceHealth: ServiceHealth | null;
+
   arrangement: Arrangement | null;
   past: Arrangement[];
   future: Arrangement[];
@@ -55,12 +80,17 @@ interface State {
 
   analyse(): Promise<void>;
   cancelAnalysis(): void;
+  isolate(): Promise<void>;
+  clearIsolated(): void;
+  checkService(): Promise<void>;
 
   /** Any edit to the arrangement; pushes undo state. */
   edit(mutator: (draft: Arrangement) => Arrangement | void, label?: string): void;
   undo(): void;
   redo(): void;
   applyCapo(capo: number, transpose: number): void;
+  /** Flip every chord between its plain triad and the extension detected. */
+  setRichChords(rich: boolean): void;
   refreshCapoSuggestion(): void;
 }
 
@@ -89,6 +119,11 @@ export const useStore = create<State>((set, get) => ({
   error: null,
   result: null,
 
+  isolating: false,
+  isolationError: null,
+  isolated: null,
+  serviceHealth: null,
+
   arrangement: null,
   past: [],
   future: [],
@@ -105,6 +140,8 @@ export const useStore = create<State>((set, get) => ({
       result: null,
       arrangement: null,
       error: null,
+      isolated: null,
+      isolationError: null,
       past: [],
       future: [],
     }),
@@ -117,7 +154,10 @@ export const useStore = create<State>((set, get) => ({
     if (!audio) return;
     const s = Math.max(0, Math.min(start, audio.duration));
     const e = Math.max(s + 0.5, Math.min(end, audio.duration));
-    set({ trim: { start: s, end: e } });
+    // A stem belongs to the trim it came from.
+    const isolated = get().isolated;
+    const stale = isolated && (isolated.trim.start !== s || isolated.trim.end !== e);
+    set({ trim: { start: s, end: e }, isolated: stale ? null : isolated });
   },
 
   setStep: (step) => set({ step }),
@@ -129,19 +169,84 @@ export const useStore = create<State>((set, get) => ({
   setSeparation: (patch) => set((s) => ({ separation: { ...s.separation, ...patch } })),
 
   async analyse() {
-    const { audio, trim, settings } = get();
+    const { audio, trim, settings, isolated } = get();
     if (!audio) return;
     activeRun?.cancel();
     set({ analysing: true, error: null, progress: { phase: 'loading', message: 'Starting…' }, step: 'analyse' });
 
-    const startSample = Math.floor(trim.start * audio.sampleRate);
-    const endSample = Math.min(audio.mono.length, Math.ceil(trim.end * audio.sampleRate));
-    const clip = audio.mono.slice(startSample, endSample);
+    // The isolated stem is already the trimmed section, so it needs no slicing.
+    const useStem = settings.isolateGuitar && isolated !== null;
+    const clip = useStem
+      ? isolated!.mono
+      : audio.mono.slice(
+          Math.floor(trim.start * audio.sampleRate),
+          Math.min(audio.mono.length, Math.ceil(trim.end * audio.sampleRate)),
+        );
+    const sampleRate = useStem ? isolated!.sampleRate : audio.sampleRate;
 
-    const run = runAnalysis(clip, audio.sampleRate, settings, (progress) => set({ progress }));
+    const run = runAnalysis(clip, sampleRate, settings, (progress) => set({ progress }));
     activeRun = run;
     try {
       const result = await run.promise;
+      if (useStem) {
+        result.arrangement.notes.unshift(
+          `Analysed the isolated ${isolated!.stem} stem (${isolated!.model}) rather than the raw capture.`,
+        );
+      }
+
+      // Basic Pitch cannot run in the worker - tfjs needs a document to reach
+      // WebGL - so the Full tier's transcription happens here, on the clip the
+      // worker just analysed, and replaces the monophonic tracker's output.
+      if (settings.tier === 'full' && settings.useBasicPitch && basicPitchAvailability().available) {
+        set({ progress: { phase: 'transcribe', message: 'Transcribing with Basic Pitch…', percent: 0 } });
+        try {
+          const notes = await transcribeWithBasicPitch(
+            clip,
+            sampleRate,
+            {
+              onsetThreshold: settings.noteConfidence,
+              frameThreshold: Math.max(0.05, settings.noteConfidence * 0.7),
+              minNoteLengthMs: 58,
+              minMidi: settings.melodyMinMidi,
+              maxMidi: settings.melodyMaxMidi,
+              beatOffset: result.arrangement.beatOffset,
+              tempo: result.arrangement.tempo,
+              grid: settings.quantiseGrid,
+            },
+            (percent) => {
+              // Basic Pitch reports a fraction, not a percentage.
+              const pct = Math.max(0, Math.min(100, percent <= 1 ? percent * 100 : percent));
+              set({
+                progress: {
+                  phase: 'transcribe',
+                  message: `Transcribing with Basic Pitch… ${Math.round(pct)}%`,
+                  percent: pct,
+                },
+              });
+            },
+          );
+          if (notes && notes.length > 0) {
+            result.arrangement.riff = notes;
+            result.arrangement.notes.push(
+              'Full tier: polyphonic transcription by Basic Pitch. Approximate - expect phantom notes in dense passages.',
+            );
+            withFretPositions(result.arrangement, tuningById(result.arrangement.tuningId).midi);
+            const dropped = dropUnplayableNotes(result.arrangement);
+            if (dropped > 0) {
+              result.arrangement.notes.push(
+                `${dropped} note${dropped === 1 ? '' : 's'} dropped as unplayable: a guitar has six strings, and the model reported denser stacks than that.`,
+              );
+            }
+          } else if (notes && notes.length === 0) {
+            result.arrangement.notes.push('Basic Pitch found no notes; the monophonic tracker output is shown instead.');
+          }
+        } catch (err) {
+          result.arrangement.notes.push(
+            `Basic Pitch did not run (${err instanceof Error ? err.message : String(err)}); showing the monophonic tracker instead.`,
+          );
+        }
+      }
+
       set({
         result,
         arrangement: result.arrangement,
@@ -166,6 +271,52 @@ export const useStore = create<State>((set, get) => ({
     } finally {
       activeRun = null;
     }
+  },
+
+  async isolate() {
+    const { audio, trim, separation } = get();
+    if (!audio || !separation.endpoint) return;
+    set({ isolating: true, isolationError: null });
+    try {
+      const clip = audio.mono.slice(
+        Math.floor(trim.start * audio.sampleRate),
+        Math.min(audio.mono.length, Math.ceil(trim.end * audio.sampleRate)),
+      );
+      const wav = encodeWav(clip, audio.sampleRate);
+      const separated = await separateStem(wav, separation);
+      const buffer = await decodeToBuffer(separated);
+      set({
+        isolated: {
+          mono: toMono(buffer),
+          sampleRate: buffer.sampleRate,
+          stem: separation.stem,
+          model: separation.model,
+          trim: { start: trim.start, end: trim.end },
+        },
+        isolating: false,
+      });
+      // Isolating is only useful if the analysis then uses it.
+      set((s) => ({ settings: { ...s.settings, isolateGuitar: true } }));
+    } catch (err) {
+      set({
+        isolating: false,
+        isolationError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  },
+
+  clearIsolated() {
+    set({ isolated: null, isolationError: null });
+    set((s) => ({ settings: { ...s.settings, isolateGuitar: false } }));
+  },
+
+  async checkService() {
+    const endpoint = get().separation.endpoint;
+    if (!endpoint) {
+      set({ serviceHealth: null });
+      return;
+    }
+    set({ serviceHealth: await probeService(endpoint) });
   },
 
   cancelAnalysis() {
@@ -213,6 +364,20 @@ export const useStore = create<State>((set, get) => ({
     get().edit((draft) => {
       draft.capo = Math.max(0, Math.min(11, Math.round(capo)));
       draft.transpose = Math.max(-6, Math.min(6, Math.round(transpose)));
+    });
+  },
+
+  setRichChords(rich) {
+    get().edit((draft) => {
+      draft.richChords = rich;
+      for (const bc of draft.chords) {
+        if (!bc.detected) continue;
+        const next = rich ? { ...bc.detected } : simplifyToTriad(bc.detected);
+        if (next.quality === bc.chord.quality && next.root === bc.chord.root) continue;
+        bc.chord = next;
+        // The pinned voicing belonged to the other spelling.
+        bc.shapeId = undefined;
+      }
     });
   },
 

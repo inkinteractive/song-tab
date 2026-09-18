@@ -20,7 +20,6 @@ import { essentiaHpcp, essentiaKey, essentiaRhythm, essentiaLoadError } from './
 import { decodeChordFrames, estimateKey, framesToSegments } from './chordEngine';
 import { simplifyToBars, tidyProgression } from './simplify';
 import { extractRiff } from './melody';
-import { basicPitchAvailability } from './basicPitch';
 import { withFretPositions } from '../music/arrangement';
 import { suggestStrumPattern } from '../music/strumming';
 import { chordName, midiToFreq, type MusicalKey, parsePitchClass, shouldPreferFlats } from '../music/theory';
@@ -188,10 +187,9 @@ export async function analyzeClip(input: AnalyzeInput, onProgress: ProgressFn = 
       maxNotesPerBeat: full ? 8 : 2,
     });
 
-    if (full) {
-      const bp = basicPitchAvailability();
-      if (!bp.available) notes.push(bp.reason);
-    }
+    // The Full tier's polyphonic pass (Basic Pitch) runs on the main thread -
+    // tfjs cannot reach WebGL from a worker - so the caller layers it on top of
+    // this monophonic result. Nothing to say about it from in here.
     if (riff.length === 0) {
       notes.push('No melodic line stood out. Narrow the pitch range to the guitar register, or lower the note-engine confidence.');
     }
@@ -209,6 +207,7 @@ export async function analyzeClip(input: AnalyzeInput, onProgress: ProgressFn = 
     transpose: 0,
     chords: bars,
     riff,
+    richChords: settings.richChords,
     strumPatternId: suggestStrumPattern({
       tempo,
       beatsPerBar: settings.beatsPerBar,

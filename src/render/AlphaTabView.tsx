@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { getPlayheadSeconds } from '../state/playhead';
 import * as alphaTab from '@coderline/alphatab';
 import { buildScore } from './score';
 import type { Arrangement } from '../types';
@@ -21,19 +22,17 @@ const ASSET_BASE = import.meta.env.BASE_URL.endsWith('/')
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
 
-export type CursorMode = 'synth' | 'clip';
+export type CursorMode = 'synth' | 'external';
 
 interface Props {
   arrangement: Arrangement;
   title: string;
   mode: CursorMode;
-  /** Seconds into the clip; only used in `clip` mode. */
-  externalTime: number;
   onReady?: (api: alphaTab.AlphaTabApi) => void;
   onError?: (message: string) => void;
 }
 
-export function AlphaTabView({ arrangement, title, mode, externalTime, onReady, onError }: Props) {
+export function AlphaTabView({ arrangement, title, mode, onReady, onError }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const apiRef = useRef<alphaTab.AlphaTabApi | null>(null);
   const [status, setStatus] = useState<'init' | 'ready' | 'failed'>('init');
@@ -132,19 +131,37 @@ export function AlphaTabView({ arrangement, title, mode, externalTime, onReady, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arrangement, title]);
 
-  // Cursor follows the original clip.
+  // Cursor follows whichever audio source is playing.
+  //
+  // Read straight from the playhead store on an animation frame rather than
+  // taking the position through React: a state update per frame re-rendered
+  // this component (and re-ran the score effect's dependency checks) sixty
+  // times a second, which is exactly the lag it is meant to be tracking.
   useEffect(() => {
     const api = apiRef.current;
-    if (!api || mode !== 'clip' || status !== 'ready' || !playerReady) return;
-    // The score starts at beat 0 of the clip, so clip time maps straight onto
-    // score time once the lead-in before the first beat is removed.
-    const ms = Math.max(0, (externalTime - arrangement.beatOffset) * 1000);
-    try {
-      api.timePosition = ms;
-    } catch {
-      /* the player is not ready yet; the next tick will land */
-    }
-  }, [externalTime, mode, status, playerReady, arrangement.beatOffset]);
+    if (!api || mode !== 'external' || status !== 'ready' || !playerReady) return;
+    let raf = 0;
+    let lastMs = -1;
+    const follow = () => {
+      const seconds = getPlayheadSeconds();
+      if (seconds !== null) {
+        // The score starts at beat 0 of the clip, so the lead-in comes off.
+        const ms = Math.max(0, (seconds - arrangement.beatOffset) * 1000);
+        // alphaTab re-seeks on assignment; skip sub-frame noise.
+        if (Math.abs(ms - lastMs) > 20) {
+          lastMs = ms;
+          try {
+            api.timePosition = ms;
+          } catch {
+            /* the player is not ready yet; the next frame will land */
+          }
+        }
+      }
+      raf = requestAnimationFrame(follow);
+    };
+    raf = requestAnimationFrame(follow);
+    return () => cancelAnimationFrame(raf);
+  }, [mode, status, playerReady, arrangement.beatOffset]);
 
   return (
     <div className="relative">

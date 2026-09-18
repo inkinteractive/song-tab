@@ -8,3 +8,5 @@ public/alphaTab*
 server/__pycache__/
 server/.venv/
 tsconfig.tsbuildinfo
+
+public/models/

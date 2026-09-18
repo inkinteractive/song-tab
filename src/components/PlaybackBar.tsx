@@ -1,7 +1,13 @@
 /**
- * Playback, either of the original clip (with the score cursor following) or of
- * alphaTab's synth rendering of the arrangement. Checking one against the other
- * is how you tell whether the reduction actually fits the song.
+ * Transport.
+ *
+ * Three sources, in order of how close they are to the record:
+ *   - Original clip: what was captured.
+ *   - Guitar: the isolated stem, once phase 2 separation has produced one.
+ *   - Synth: alphaTab playing the arrangement back.
+ *
+ * Position is pushed into the playhead store rather than into React state, so
+ * the chart highlight tracks the audio instead of the render queue.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -9,52 +15,59 @@ import type * as alphaTab from '@coderline/alphatab';
 import { useStore } from '../state/store';
 import { sliceMono } from '../audio/buffer';
 import { createClipPlayer, type ClipPlayer } from '../audio/player';
-import type { CursorMode } from '../render/AlphaTabView';
+import { setPlayheadSeconds, usePlayheadSeconds } from '../state/playhead';
+
+export type PlaybackSource = 'clip' | 'guitar' | 'synth';
 
 interface Props {
   api: alphaTab.AlphaTabApi | null;
-  mode: CursorMode;
-  onModeChange: (m: CursorMode) => void;
-  onClipTime: (sec: number) => void;
-  onBeat: (beat: number | null) => void;
+  source: PlaybackSource;
+  onSourceChange: (s: PlaybackSource) => void;
 }
 
 const SPEEDS = [0.5, 0.75, 1];
 
-export function PlaybackBar({ api, mode, onModeChange, onClipTime, onBeat }: Props) {
+export function PlaybackBar({ api, source, onSourceChange }: Props) {
   const audio = useStore((s) => s.audio);
   const trim = useStore((s) => s.trim);
+  const isolated = useStore((s) => s.isolated);
   const a = useStore((s) => s.arrangement);
 
   const playerRef = useRef<ClipPlayer | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
   const [speed, setSpeed] = useState(1);
+  const [loop, setLoop] = useState(false);
   const [duration, setDuration] = useState(0);
+  const position = usePlayheadSeconds() ?? 0;
 
-  // Rebuild the clip player whenever the selection changes.
+  const guitarReady = isolated !== null;
+
+  // Rebuild the audio player when the source, the selection or the stem changes.
   useEffect(() => {
     playerRef.current?.dispose();
     playerRef.current = null;
     setPlaying(false);
-    setPosition(0);
-    if (!audio) return;
-    const clip = sliceMono(audio.mono, audio.sampleRate, trim.start, trim.end);
+    setPlayheadSeconds(0);
+    if (!audio || source === 'synth') return;
+
+    const clip =
+      source === 'guitar' && isolated
+        ? isolated.mono
+        : sliceMono(audio.mono, audio.sampleRate, trim.start, trim.end);
+    const sampleRate = source === 'guitar' && isolated ? isolated.sampleRate : audio.sampleRate;
     if (clip.length === 0) return;
+
     const player = createClipPlayer(
       clip,
-      audio.sampleRate,
-      (t) => {
-        setPosition(t);
-        onClipTime(t);
-        if (a) onBeat(((t - a.beatOffset) * a.tempo) / 60);
-      },
+      sampleRate,
+      (t) => setPlayheadSeconds(t),
       () => {
         setPlaying(false);
-        onBeat(null);
+        setPlayheadSeconds(null);
       },
     );
     player.setRate(speed);
+    player.setLoop(loop);
     playerRef.current = player;
     setDuration(player.duration);
     return () => {
@@ -62,85 +75,126 @@ export function PlaybackBar({ api, mode, onModeChange, onClipTime, onBeat }: Pro
       playerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audio, trim.start, trim.end]);
+  }, [audio, trim.start, trim.end, source, isolated]);
 
   // Follow alphaTab's own player when it is the one making the sound.
   useEffect(() => {
-    if (!api || mode !== 'synth' || !a) return;
+    if (!api || source !== 'synth' || !a) return;
     const handler = (args: { currentTime: number; endTime: number }) => {
-      setPosition(args.currentTime / 1000);
       setDuration(args.endTime / 1000);
-      onBeat((args.currentTime / 1000 / 60) * a.tempo);
+      // alphaTab's timeline starts at bar 1; the clip's does not.
+      setPlayheadSeconds(args.currentTime / 1000 + a.beatOffset);
     };
     api.playerPositionChanged.on(handler);
     return () => api.playerPositionChanged.off(handler);
-  }, [api, mode, a, onBeat]);
+  }, [api, source, a]);
+
+  // Keep alphaTab's own looping in step with the transport.
+  useEffect(() => {
+    if (!api) return;
+    api.isLooping = loop;
+  }, [api, loop]);
 
   function toggle() {
-    if (mode === 'clip') {
-      const player = playerRef.current;
-      if (!player) return;
-      if (playing) {
-        player.pause();
-        setPlaying(false);
-      } else {
-        void player.play();
-        setPlaying(true);
-      }
-    } else {
+    if (source === 'synth') {
       api?.playPause();
       setPlaying((v) => !v);
+      return;
+    }
+    const player = playerRef.current;
+    if (!player) return;
+    if (playing) {
+      player.pause();
+      setPlaying(false);
+    } else {
+      void player.play();
+      setPlaying(true);
     }
   }
 
   function stop() {
-    if (mode === 'clip') {
+    if (source === 'synth') api?.stop();
+    else {
       playerRef.current?.pause();
       playerRef.current?.seek(0);
-    } else {
-      api?.stop();
     }
     setPlaying(false);
-    setPosition(0);
-    onBeat(null);
+    setPlayheadSeconds(null);
   }
 
   function seek(sec: number) {
-    if (mode === 'clip') playerRef.current?.seek(sec);
-    else if (api) api.timePosition = sec * 1000;
-    setPosition(sec);
+    if (source === 'synth' && api) {
+      api.timePosition = Math.max(0, (sec - (a?.beatOffset ?? 0)) * 1000);
+    } else {
+      playerRef.current?.seek(sec);
+    }
+    setPlayheadSeconds(sec);
   }
 
   function changeSpeed(rate: number) {
     setSpeed(rate);
-    if (mode === 'clip') playerRef.current?.setRate(rate);
-    else if (api) api.playbackSpeed = rate;
+    if (source === 'synth') {
+      if (api) api.playbackSpeed = rate;
+    } else {
+      playerRef.current?.setRate(rate);
+    }
+  }
+
+  function toggleLoop() {
+    const next = !loop;
+    setLoop(next);
+    playerRef.current?.setLoop(next);
+    if (api) api.isLooping = next;
   }
 
   const total = duration || (a?.clipDuration ?? 0);
+  const sources: { id: PlaybackSource; label: string; enabled: boolean; title: string }[] = [
+    { id: 'clip', label: 'Original clip', enabled: true, title: 'The audio as captured' },
+    {
+      id: 'guitar',
+      label: 'Guitar',
+      enabled: guitarReady,
+      title: guitarReady
+        ? `Isolated ${isolated!.stem} stem (${isolated!.model})`
+        : 'Isolate the guitar first, on the Analyse step, to hear just the stem',
+    },
+    { id: 'synth', label: 'Synth', enabled: true, title: "alphaTab playing the arrangement" },
+  ];
 
   return (
-    <div className="card sticky top-2 z-10 flex flex-wrap items-center gap-3 backdrop-blur">
+    <div className="card sticky top-2 z-20 flex flex-wrap items-center gap-3 backdrop-blur">
       <div className="flex rounded-md border border-ink-600 p-0.5 text-xs">
-        {(['clip', 'synth'] as CursorMode[]).map((m) => (
+        {sources.map((s) => (
           <button
-            key={m}
+            key={s.id}
+            title={s.title}
+            disabled={!s.enabled}
             onClick={() => {
               stop();
-              onModeChange(m);
+              onSourceChange(s.id);
             }}
-            className={`rounded px-2 py-1 ${mode === m ? 'bg-amber-450 text-ink-900' : 'text-slate-400'}`}
+            className={`rounded px-2 py-1 transition ${
+              source === s.id ? 'bg-amber-450 text-ink-900' : 'text-slate-400 hover:text-slate-200'
+            } ${s.enabled ? '' : 'cursor-not-allowed opacity-40'}`}
           >
-            {m === 'clip' ? 'Original clip' : 'Synth'}
+            {s.label}
           </button>
         ))}
       </div>
 
-      <button className="btn btn-primary px-3" onClick={toggle} disabled={mode === 'synth' && !api}>
+      <button className="btn btn-primary px-3" onClick={toggle} disabled={source === 'synth' && !api}>
         {playing ? '❚❚' : '▶'}
       </button>
-      <button className="btn px-3" onClick={stop}>
+      <button className="btn px-3" onClick={stop} title="Stop">
         ■
+      </button>
+      <button
+        className={`btn px-3 ${loop ? 'border-amber-450 text-amber-450' : ''}`}
+        onClick={toggleLoop}
+        title={loop ? 'Looping - click to play once' : 'Loop the clip'}
+        aria-pressed={loop}
+      >
+        ⟳
       </button>
 
       <input

@@ -3,26 +3,39 @@
  * names. Click a bar to change the chord, its voicing, or to split/clear it.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import { displayName, resolveShape, shapeOptions, soundingName, toBars } from '../music/arrangement';
+import { displayName, resolveShape, shapeOptions, soundingName, timeToBeat, toBars } from '../music/arrangement';
+import { useActiveSpanId } from '../state/playhead';
 import { ChordDiagram } from '../render/ChordDiagram';
 import { QUALITY_SUFFIX, SHARP_NAMES, chordName, parsePitchClass, type ChordQuality } from '../music/theory';
 import type { BarChord } from '../types';
 
 const QUALITIES = Object.keys(QUALITY_SUFFIX) as ChordQuality[];
 
-export function ChordChart({ currentBeat }: { currentBeat: number | null }) {
+export function ChordChart() {
   const a = useStore((s) => s.arrangement);
   const edit = useStore((s) => s.edit);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const stripRef = useRef<HTMLDivElement | null>(null);
+
+  // Subscribing to the id (not the time) means this only re-renders when the
+  // sounding chord actually changes.
+  const activeId = useActiveSpanId(a?.chords ?? [], (sec) => (a ? timeToBeat(a, sec) : 0));
+
+  // Keep the sounding bar in view as the chart plays.
+  useEffect(() => {
+    if (!activeId) return;
+    const strip = stripRef.current;
+    const target = strip?.querySelector<HTMLElement>(`[data-chord-id="${CSS.escape(activeId)}"]`);
+    if (!strip || !target) return;
+    const offset = target.offsetLeft - strip.clientWidth / 2 + target.clientWidth / 2;
+    strip.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
+  }, [activeId]);
 
   if (!a) return null;
   const bars = toBars(a);
   const selected = a.chords.find((c) => c.id === selectedId) ?? null;
-
-  const isActive = (c: BarChord) =>
-    currentBeat !== null && currentBeat >= c.startBeat && currentBeat < c.startBeat + c.durationBeats;
 
   function setChordField(id: string, patch: Partial<BarChord['chord']>) {
     edit((d) => {
@@ -79,29 +92,38 @@ export function ChordChart({ currentBeat }: { currentBeat: number | null }) {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        {/* One row across the page, scrolling with playback. Bars stay a fixed
+            width so the strip reads like a timeline rather than reflowing. */}
+        <div
+          ref={stripRef}
+          className="flex gap-1.5 overflow-x-auto pb-2 [scrollbar-width:thin]"
+          role="list"
+          aria-label="Chord progression"
+        >
           {bars.map((bar) => (
             <div
               key={bar.index}
-              className="relative min-h-[64px] rounded-md border border-ink-600 bg-ink-900 p-2"
+              role="listitem"
+              className="relative min-h-[72px] w-[124px] shrink-0 rounded-md border border-ink-600 bg-ink-900 p-2"
             >
               <span className="absolute left-1.5 top-1 text-[10px] text-slate-600">{bar.index + 1}</span>
               {bar.chords.length === 0 ? (
                 <button
-                  className="mt-3 w-full text-center text-sm text-slate-600 hover:text-amber-450"
+                  className="mt-4 w-full text-center text-sm text-slate-600 hover:text-amber-450"
                   onClick={() => addChordToBar(bar.startBeat)}
                 >
                   + add chord
                 </button>
               ) : (
-                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
                   {bar.chords.map((c) => (
                     <button
                       key={c.id}
+                      data-chord-id={c.id}
                       onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
                       className={[
-                        'rounded px-2 py-1 text-lg font-semibold transition',
-                        isActive(c) ? 'bg-amber-450 text-ink-900' : 'text-slate-100 hover:bg-ink-700',
+                        'rounded px-2 py-1 text-lg font-semibold transition-colors duration-75',
+                        c.id === activeId ? 'bg-amber-450 text-ink-900' : 'text-slate-100 hover:bg-ink-700',
                         c.id === selectedId ? 'ring-2 ring-amber-450' : '',
                         c.confidence < 0.25 ? 'opacity-60' : '',
                       ].join(' ')}

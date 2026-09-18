@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useStore } from '../state/store';
 import { TIER_LABELS, type Tier } from '../types';
-import { separationStatus } from '../analysis/separation';
+import { STEM_LABELS, separationStatus, type Stem } from '../analysis/separation';
 import { basicPitchAvailability } from '../analysis/basicPitch';
 import { midiToName, parsePitchClass, type KeyMode } from '../music/theory';
 import { SHARP_NAMES } from '../music/theory';
@@ -21,6 +21,13 @@ export function AnalyseSetup() {
   const error = useStore((s) => s.error);
   const separation = useStore((s) => s.separation);
   const setSeparation = useStore((s) => s.setSeparation);
+  const isolate = useStore((s) => s.isolate);
+  const isolating = useStore((s) => s.isolating);
+  const isolated = useStore((s) => s.isolated);
+  const isolationError = useStore((s) => s.isolationError);
+  const clearIsolated = useStore((s) => s.clearIsolated);
+  const checkService = useStore((s) => s.checkService);
+  const serviceHealth = useStore((s) => s.serviceHealth);
   const title = useStore((s) => s.title);
   const setTitle = useStore((s) => s.setTitle);
   const [advanced, setAdvanced] = useState(false);
@@ -61,27 +68,39 @@ export function AnalyseSetup() {
             ))}
           </div>
           {settings.tier === 'full' && (
-            <p className="mt-2 rounded-md border border-ink-600 bg-ink-900 px-3 py-2 text-xs text-slate-400">
-              {bp.reason}
-            </p>
+            <div className="mt-2 space-y-2 rounded-md border border-ink-600 bg-ink-900 px-3 py-2">
+              <label className="flex items-center gap-2 text-xs text-slate-300">
+                <input
+                  type="checkbox"
+                  disabled={!bp.available}
+                  checked={settings.useBasicPitch && bp.available}
+                  onChange={(e) => update({ useBasicPitch: e.target.checked })}
+                />
+                Use Basic Pitch (polyphonic)
+              </label>
+              <p className="text-xs text-slate-500">{bp.reason}</p>
+              {!settings.useBasicPitch && (
+                <p className="text-xs text-slate-500">
+                  Off: the Full tier falls back to the phase 1 monophonic tracker, which is faster and will miss
+                  simultaneous voices.
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>
 
       <div className="card space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-200">Isolate the guitar (phase 2)</h3>
-          <label className="flex items-center gap-2 text-sm text-slate-400">
-            <input
-              type="checkbox"
-              disabled={!sep.available}
-              checked={settings.isolateGuitar && sep.available}
-              onChange={(e) => update({ isolateGuitar: e.target.checked })}
-            />
-            Enable
-          </label>
+          <h3 className="font-semibold text-slate-200">Isolate the guitar</h3>
+          {isolated && (
+            <span className="chip border-amber-450 text-amber-450">
+              {isolated.stem} stem ready ({isolated.model})
+            </span>
+          )}
         </div>
         <p className="text-xs text-slate-400">{sep.reason}</p>
+
         <div className="grid gap-2 sm:grid-cols-3">
           <div>
             <label className="label">Service URL</label>
@@ -90,6 +109,7 @@ export function AnalyseSetup() {
               placeholder="http://localhost:8000"
               value={separation.endpoint ?? ''}
               onChange={(e) => setSeparation({ endpoint: e.target.value.trim() || null })}
+              onBlur={() => void checkService()}
             />
           </div>
           <div>
@@ -99,9 +119,8 @@ export function AnalyseSetup() {
               value={separation.model}
               onChange={(e) => setSeparation({ model: e.target.value as typeof separation.model })}
             >
-              <option value="htdemucs">Demucs htdemucs</option>
-              <option value="htdemucs_ft">Demucs htdemucs_ft</option>
-              <option value="spleeter:4stems">Spleeter 4 stems</option>
+              <option value="htdemucs">Demucs htdemucs (faster)</option>
+              <option value="htdemucs_ft">Demucs htdemucs_ft (better, slower)</option>
             </select>
           </div>
           <div>
@@ -109,15 +128,61 @@ export function AnalyseSetup() {
             <select
               className="input"
               value={separation.stem}
-              onChange={(e) => setSeparation({ stem: e.target.value as typeof separation.stem })}
+              onChange={(e) => setSeparation({ stem: e.target.value as Stem })}
             >
-              <option value="other">other (guitars/keys)</option>
-              <option value="vocals">vocals</option>
-              <option value="bass">bass</option>
-              <option value="drums">drums</option>
+              {(Object.keys(STEM_LABELS) as Stem[]).map((k) => (
+                <option key={k} value={k}>
+                  {STEM_LABELS[k]}
+                </option>
+              ))}
             </select>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="btn text-xs"
+            disabled={!sep.available || isolating}
+            onClick={() => void isolate()}
+          >
+            {isolating ? 'Separating… (this takes a while on CPU)' : isolated ? 'Re-run separation' : 'Isolate now'}
+          </button>
+          <button className="btn btn-ghost text-xs" disabled={!separation.endpoint} onClick={() => void checkService()}>
+            Test connection
+          </button>
+          {isolated && (
+            <>
+              <label className="flex items-center gap-2 text-sm text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={settings.isolateGuitar}
+                  onChange={(e) => update({ isolateGuitar: e.target.checked })}
+                />
+                Analyse the stem
+              </label>
+              <button className="btn btn-ghost text-xs text-red-300" onClick={clearIsolated}>
+                Discard stem
+              </button>
+            </>
+          )}
+        </div>
+
+        {serviceHealth && (
+          <p className={`text-xs ${serviceHealth.reachable ? 'text-slate-400' : 'text-amber-450'}`}>
+            {serviceHealth.message}
+          </p>
+        )}
+        {isolationError && (
+          <p className="rounded-md border border-red-800 bg-red-950/60 px-3 py-2 text-xs text-red-200">
+            Separation failed: {isolationError}
+          </p>
+        )}
+        {isolated && (
+          <p className="text-xs text-slate-500">
+            The separated stem is also available as a playback source on the next screen, so you can hear what the
+            engine is reading.
+          </p>
+        )}
       </div>
 
       <div className="card">

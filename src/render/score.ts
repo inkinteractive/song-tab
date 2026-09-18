@@ -7,11 +7,12 @@
  */
 
 import * as alphaTab from '@coderline/alphatab';
-import { resolveShape, toBars, tuningOf, uniqueShapes } from '../music/arrangement';
+import { groupRiffIntoChords, resolveShape, toBars, tuningOf, uniqueShapes } from '../music/arrangement';
 import { keyName } from '../music/theory';
 import { patternById, patternToString } from '../music/strumming';
 import { tuningById } from '../music/fretboard';
 import type { Arrangement, BarChord, RiffNote } from '../types';
+import type { RiffGroup } from '../music/arrangement';
 import { TIER_LABELS } from '../types';
 
 const M = alphaTab.model;
@@ -226,16 +227,17 @@ export function buildScore(a: Arrangement, opts: ScoreBuildOptions = {}): BuiltS
 
       const barSixteenths = a.beatsPerBar * 4;
       let cursor = 0;
-      const sorted = bar.notes.slice().sort((x, y) => x.startBeat - y.startBeat);
-      for (const n of sorted) {
-        const start = Math.round((n.startBeat - bar.startBeat) * 4);
+      // Basic Pitch is polyphonic, so notes that start together become one
+      // stacked beat rather than a run of overlapping single notes.
+      for (const group of groupRiffIntoChords(bar.notes)) {
+        const start = Math.round((group.startBeat - bar.startBeat) * 4);
         if (start > cursor) {
           fillRest(voice, start - cursor);
           cursor = start;
         }
-        const length = Math.min(Math.max(1, Math.round(n.durationBeats * 4)), barSixteenths - cursor);
+        const length = Math.min(Math.max(1, Math.round(group.durationBeats * 4)), barSixteenths - cursor);
         if (length <= 0) continue;
-        addRiffBeats(voice, n, length);
+        addRiffBeats(voice, group, length);
         cursor += length;
       }
       if (cursor < barSixteenths) fillRest(voice, barSixteenths - cursor);
@@ -298,28 +300,40 @@ function addChordBeats(
   });
 }
 
-function addRiffBeats(voice: alphaTab.model.Voice, n: RiffNote, lengthSixteenths: number): void {
+function makeRiffNote(n: RiffNote): alphaTab.model.Note {
+  const note = new M.Note();
+  note.fret = n.fret!;
+  note.string = toAlphaTabString(n.string!);
+  return note;
+}
+
+function addRiffBeats(voice: alphaTab.model.Voice, group: RiffGroup, lengthSixteenths: number): void {
+  // A stringed staff paints every note by its string. One without a string -
+  // more notes in a stack than the guitar has strings, or a pitch out of range
+  // - crashes alphaTab's tab painter, so it never reaches the score.
+  const playable = group.notes.filter((n) => n.string !== undefined && n.fret !== undefined);
   const parts = durationParts(lengthSixteenths);
-  let previous: alphaTab.model.Note | null = null;
+  if (playable.length === 0) {
+    for (const part of parts) makeRest(voice, part);
+    return;
+  }
+  let previous: Map<string, alphaTab.model.Note> | null = null;
   parts.forEach((part, pi) => {
     const beat = new M.Beat();
     beat.duration = part.duration;
     beat.dots = part.dots;
-    const note = new M.Note();
-    if (n.string !== undefined && n.fret !== undefined) {
-      note.fret = n.fret;
-      note.string = toAlphaTabString(n.string);
-    } else {
-      // Unplayable in this tuning: keep the pitch so it still shows and sounds.
-      note.octave = Math.floor(n.midi / 12) - 1;
-      note.tone = n.midi % 12;
+    const current = new Map<string, alphaTab.model.Note>();
+    for (const source of playable) {
+      const note = makeRiffNote(source);
+      const prior = previous?.get(source.id);
+      if (pi > 0 && prior) {
+        note.isTieDestination = true;
+        note.tieOrigin = prior;
+      }
+      beat.addNote(note);
+      current.set(source.id, note);
     }
-    if (pi > 0 && previous) {
-      note.isTieDestination = true;
-      note.tieOrigin = previous;
-    }
-    beat.addNote(note);
-    previous = note;
+    previous = current;
     voice.addBeat(beat);
   });
 }

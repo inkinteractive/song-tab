@@ -13,6 +13,7 @@ import { RiffEditor } from './components/RiffEditor';
 import { PlaybackBar } from './components/PlaybackBar';
 import { ExportPanel } from './components/ExportPanel';
 import type { CursorMode } from './render/AlphaTabView';
+import type { PlaybackSource } from './components/PlaybackBar';
 
 // alphaTab is ~1.5MB; the chord chart should not wait for it.
 const AlphaTabView = lazy(() =>
@@ -56,7 +57,14 @@ export function App() {
           <h2 className="text-lg font-semibold text-slate-100">Analysing…</h2>
           <p className="text-sm text-slate-400">{progress?.message ?? 'Working…'}</p>
           <div className="h-2 overflow-hidden rounded-full bg-ink-900">
-            <div className="h-full w-1/3 animate-pulse rounded-full bg-amber-450" />
+            {progress?.phase === 'transcribe' && typeof progress.percent === 'number' ? (
+              <div
+                className="h-full rounded-full bg-amber-450 transition-[width]"
+                style={{ width: `${Math.max(2, Math.min(100, progress.percent))}%` }}
+              />
+            ) : (
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-amber-450" />
+            )}
           </div>
           <p className="text-xs text-slate-500">
             Chroma over a 30 second clip is a few thousand FFTs. It runs in a worker, so the page stays responsive.
@@ -88,10 +96,10 @@ function ResultScreen() {
   const future = useStore((s) => s.future);
 
   const [api, setApi] = useState<alphaTab.AlphaTabApi | null>(null);
-  const [mode, setMode] = useState<CursorMode>('clip');
-  const [clipTime, setClipTime] = useState(0);
-  const [beat, setBeat] = useState<number | null>(null);
+  const [source, setSource] = useState<PlaybackSource>('clip');
   const [scoreError, setScoreError] = useState<string | null>(null);
+  // Anything that is not alphaTab's own synth drives the cursor from outside.
+  const cursorMode: CursorMode = source === 'synth' ? 'synth' : 'external';
   const seenError = useRef(false);
 
   // Keyboard undo/redo - a lesson moves fast.
@@ -112,13 +120,7 @@ function ResultScreen() {
 
   return (
     <div className="space-y-4">
-      <PlaybackBar
-        api={api}
-        mode={mode}
-        onModeChange={setMode}
-        onClipTime={setClipTime}
-        onBeat={setBeat}
-      />
+      <PlaybackBar api={api} source={source} onSourceChange={setSource} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="chip">{TIER_LABELS[a.tier].name} tier</span>
@@ -132,34 +134,31 @@ function ResultScreen() {
         </div>
       </div>
 
-      <ResultSummary />
-
+      {/* What it heard, with the capo helper alongside it. */}
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <div className="space-y-4">
-          <ChordChart currentBeat={beat} />
-          <RiffEditor currentBeat={beat} />
-        </div>
-        <div className="space-y-4">
-          <CapoHelper />
-          <ShapeStrip />
-        </div>
+        <ResultSummary />
+        <CapoHelper />
       </div>
+
+      {/* Shapes sit directly above the chart they belong to, both full width. */}
+      <ShapeStrip />
+      <ChordChart />
+      <RiffEditor />
 
       <div className="card">
         <div className="mb-2 flex items-center justify-between">
           <h3 className="font-semibold text-slate-200">Score</h3>
           <span className="text-xs text-slate-500">
-            {mode === 'clip'
-              ? 'Cursor follows the original clip'
+            {cursorMode === 'external'
+              ? `Cursor follows the ${source === 'guitar' ? 'isolated guitar' : 'original clip'}`
               : 'alphaTab is playing its own rendering'}
           </span>
         </div>
-        <Suspense fallback={<p className="text-sm text-slate-500">Loading the score renderer\u2026</p>}>
+        <Suspense fallback={<p className="text-sm text-slate-500">Loading the score renderer…</p>}>
           <AlphaTabView
             arrangement={a}
             title={title}
-            mode={mode}
-            externalTime={clipTime}
+            mode={cursorMode}
             onReady={setApi}
             onError={(m) => {
               if (seenError.current) return;
@@ -168,7 +167,7 @@ function ResultScreen() {
             }}
           />
         </Suspense>
-        {scoreError && mode === 'synth' && (
+        {scoreError && source === 'synth' && (
           <p className="mt-2 text-xs text-amber-450">
             Synth playback is unavailable in this browser. Use "Original clip" instead.
           </p>

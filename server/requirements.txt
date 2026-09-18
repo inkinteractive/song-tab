@@ -3,6 +3,7 @@ uvicorn[standard]>=0.27
 python-multipart>=0.0.9
 soundfile>=0.12
 
-# Separation backend. Large (torch + model weights), so it is opt-in.
-# demucs>=4.0.1
-# torch>=2.1
+# Separation backend. Large (torch plus model weights, ~2GB installed) and
+# CPU-only here; a CUDA build is a drop-in replacement if you have a GPU.
+torch>=2.1
+demucs>=4.0.1

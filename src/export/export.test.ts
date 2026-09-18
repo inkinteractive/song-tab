@@ -21,6 +21,7 @@ function fixture(overrides: Partial<Arrangement> = {}): Arrangement {
     capo: 0,
     transpose: 0,
     strumPatternId: 'ddu-udu',
+    richChords: false,
     clipDuration: 8,
     beatOffset: 0,
     notes: ['Approximate - edit before teaching.'],

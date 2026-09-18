@@ -13,6 +13,7 @@ export function ResultSummary() {
   const a = useStore((s) => s.arrangement);
   const edit = useStore((s) => s.edit);
   const analyse = useStore((s) => s.analyse);
+  const setRichChords = useStore((s) => s.setRichChords);
   const setStep = useStore((s) => s.setStep);
   if (!result || !a) return null;
 
@@ -151,6 +152,29 @@ export function ResultSummary() {
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <span className="label">Chord detail</span>
+          <div className="flex rounded-md border border-ink-600 p-0.5 text-xs">
+            {[
+              { rich: false, label: 'Simple triads' },
+              { rich: true, label: 'As detected' },
+            ].map((opt) => (
+              <button
+                key={String(opt.rich)}
+                onClick={() => setRichChords(opt.rich)}
+                className={`flex-1 rounded px-2 py-1 ${
+                  a.richChords === opt.rich ? 'bg-amber-450 text-ink-900' : 'text-slate-400'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Sus, add9 and 7th chords are common in this genre; the triad is the teachable default.
+          </p>
         </div>
 
         <div className="sm:col-span-2">

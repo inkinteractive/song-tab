@@ -7,15 +7,18 @@
 
 import { useState } from 'react';
 import { useStore } from '../state/store';
-import { preferFlats, tuningOf } from '../music/arrangement';
+import { preferFlats, timeToBeat, tuningOf } from '../music/arrangement';
+import { useActiveSpanId } from '../state/playhead';
 import { midiToName } from '../music/theory';
 import { isPlayable } from '../music/fretboard';
 import type { RiffNote } from '../types';
 
-export function RiffEditor({ currentBeat }: { currentBeat: number | null }) {
+export function RiffEditor() {
   const a = useStore((s) => s.arrangement);
   const edit = useStore((s) => s.edit);
   const [showAll, setShowAll] = useState(false);
+  // Re-renders when the sounding note changes, not on every animation frame.
+  const activeId = useActiveSpanId(a?.riff ?? [], (sec) => (a ? timeToBeat(a, sec) : 0));
   if (!a || a.tier === 'essential') return null;
 
   const flats = preferFlats(a);
@@ -90,10 +93,7 @@ export function RiffEditor({ currentBeat }: { currentBeat: number | null }) {
               </thead>
               <tbody>
                 {visible.map((n) => {
-                  const active =
-                    currentBeat !== null &&
-                    currentBeat >= n.startBeat &&
-                    currentBeat < n.startBeat + n.durationBeats;
+                  const active = n.id === activeId;
                   const playable = isPlayable(n.midi, { tuning, capo: a.capo });
                   return (
                     <tr

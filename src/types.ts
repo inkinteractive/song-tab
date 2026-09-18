@@ -57,6 +57,8 @@ export interface Arrangement {
   chords: BarChord[];
   riff: RiffNote[];
   strumPatternId: string;
+  /** Whether chords are shown as detected, or reduced to plain triads. */
+  richChords: boolean;
   /** Seconds. */
   clipDuration: number;
   /** Time of beat 0 within the clip, in seconds. */
@@ -87,8 +89,10 @@ export interface AnalysisSettings {
   /** Optional overrides - null means "use what was detected". */
   tempoOverride: number | null;
   keyOverride: MusicalKey | null;
-  /** Phase 2. */
+  /** Analyse the isolated stem rather than the raw capture (phase 2). */
   isolateGuitar: boolean;
+  /** Full tier: run Basic Pitch instead of the phase 1 monophonic tracker. */
+  useBasicPitch: boolean;
 }
 
 export const DEFAULT_SETTINGS: AnalysisSettings = {
@@ -106,6 +110,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   tempoOverride: null,
   keyOverride: null,
   isolateGuitar: false,
+  useBasicPitch: true,
 };
 
 export interface AnalysisResult {
@@ -129,5 +134,7 @@ export type AnalysisProgress =
   | { phase: 'rhythm'; message: string }
   | { phase: 'chords'; message: string }
   | { phase: 'melody'; message: string }
+  | { phase: 'isolate'; message: string }
+  | { phase: 'transcribe'; message: string; percent?: number }
   | { phase: 'simplify'; message: string }
   | { phase: 'done'; message: string };

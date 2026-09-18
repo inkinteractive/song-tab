@@ -1,25 +1,35 @@
 /**
- * Phase 2 stub: guitar isolation.
+ * Guitar isolation (phase 2).
  *
- * The plan is a small FastAPI service running Demucs (htdemucs) - see
- * `server/README.md`. The client posts the trimmed clip and gets back the
- * `other`/`guitar` stem, which then goes through the same analysis path.
+ * Posts the trimmed clip to a small Demucs service (see `server/`) and gets one
+ * stem back. Guitars mostly land in Demucs' `other` stem; on a vocal-heavy
+ * track, pulling the voice out is often enough on its own, because a vocal line
+ * is what most confuses the note engine.
  *
- * Phase 1 analyses the raw capture. That is fine for chords (the chord engine
- * reads through layering) and is the weak point for the note engine.
+ * Every failure path is soft: if the service is absent, slow or broken, the app
+ * analyses the raw capture and says so.
  */
+
+export type Stem = 'other' | 'vocals' | 'drums' | 'bass';
 
 export interface SeparationConfig {
   /** Base URL of the separation service, e.g. http://localhost:8000 */
   endpoint: string | null;
-  model: 'htdemucs' | 'htdemucs_ft' | 'spleeter:4stems';
-  stem: 'other' | 'vocals' | 'drums' | 'bass';
+  model: 'htdemucs' | 'htdemucs_ft';
+  stem: Stem;
 }
 
 export const DEFAULT_SEPARATION: SeparationConfig = {
   endpoint: null,
   model: 'htdemucs',
   stem: 'other',
+};
+
+export const STEM_LABELS: Record<Stem, string> = {
+  other: 'other - guitars, keys, everything not voice/bass/drums',
+  vocals: 'vocals - isolate the voice',
+  bass: 'bass',
+  drums: 'drums',
 };
 
 export interface SeparationStatus {
@@ -32,28 +42,71 @@ export function separationStatus(config: SeparationConfig): SeparationStatus {
     return {
       available: false,
       reason:
-        'Guitar isolation is phase 2. Start the Demucs service in `server/` and set its URL to enable it; until then the raw capture is analysed directly.',
+        'Not configured. Start the Demucs service in `server/` and put its URL here; until then the raw capture is analysed directly.',
     };
   }
-  return { available: true, reason: `Using ${config.model} at ${config.endpoint}` };
+  return { available: true, reason: `${config.model} → ${config.stem} stem, via ${config.endpoint}` };
 }
 
-/** Posts a clip for separation. Returns null when the service is not configured. */
+export interface ServiceHealth {
+  reachable: boolean;
+  backendInstalled: boolean;
+  models: string[];
+  message: string;
+}
+
+export async function probeService(endpoint: string, signal?: AbortSignal): Promise<ServiceHealth> {
+  try {
+    const res = await fetch(`${endpoint.replace(/\/$/, '')}/health`, { signal });
+    if (!res.ok) {
+      return { reachable: false, backendInstalled: false, models: [], message: `Service answered ${res.status}.` };
+    }
+    const body = (await res.json()) as { models?: string[]; backend_installed?: boolean };
+    return {
+      reachable: true,
+      backendInstalled: Boolean(body.backend_installed),
+      models: body.models ?? [],
+      message: body.backend_installed
+        ? `Ready. Models: ${(body.models ?? []).join(', ')}.`
+        : 'Service is up but Demucs is not installed on it. See server/README.md.',
+    };
+  } catch (err) {
+    return {
+      reachable: false,
+      backendInstalled: false,
+      models: [],
+      message: err instanceof Error ? err.message : 'Could not reach the service.',
+    };
+  }
+}
+
+/** Posts a clip for separation. Throws with a readable message on failure. */
 export async function separateStem(
   wav: Blob,
   config: SeparationConfig,
   signal?: AbortSignal,
-): Promise<ArrayBuffer | null> {
-  if (!config.endpoint) return null;
+): Promise<ArrayBuffer> {
+  if (!config.endpoint) throw new Error('No separation service configured.');
   const form = new FormData();
   form.append('audio', wav, 'clip.wav');
   form.append('model', config.model);
   form.append('stem', config.stem);
+
   const res = await fetch(`${config.endpoint.replace(/\/$/, '')}/separate`, {
     method: 'POST',
     body: form,
     signal,
   });
-  if (!res.ok) throw new Error(`Separation failed: ${res.status} ${res.statusText}`);
+
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const body = (await res.json()) as { detail?: string };
+      if (body.detail) detail = body.detail;
+    } catch {
+      /* not JSON; the status line is all we have */
+    }
+    throw new Error(detail);
+  }
   return res.arrayBuffer();
 }

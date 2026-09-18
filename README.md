@@ -82,7 +82,7 @@ One selector, defaulting to Essential.
 | --- | --- |
 | **Essential** (default) | Chord chart only: names, open/barre diagrams, a suggested strumming pattern, one chord per bar. The acoustic busking version. |
 | **Standard** | Those chords **plus** the main riff or melody as tab, so the student gets the recognisable hook over the progression. |
-| **Full (reference)** | Best-effort transcription from the note engine, for you to pick apart. Labelled approximate, because it is. |
+| **Full (reference)** | Polyphonic transcription from Spotify's Basic Pitch, for you to pick apart. Labelled approximate, because it is. |
 
 ## The pipeline
 
@@ -91,7 +91,7 @@ One selector, defaulting to Essential.
 2. **Trim** to a section on the waveform, with preview playback. Short isolated
    sections analyse far better than a whole track; the default selection is 30
    seconds.
-3. **Isolate the guitar** - phase 2, optional. See `server/`.
+3. **Isolate the guitar** (optional): Demucs separates the clip and the app analyses one stem instead of the raw capture. See `server/`.
 4. **Detect tempo, beats and key**, then run the engines for the chosen tier.
 5. **Simplify**: collapse the detected harmony to guitar-friendly voicings, one
    chord per bar unless a mid-bar change is genuinely strong, quantise the riff,
@@ -103,7 +103,8 @@ One selector, defaulting to Essential.
    Essential, notation + tab for Standard and Full. Playback with a moving
    cursor, driven either by alphaTab's synth or by the original clip.
 9. **Edit** anything: chords, voicings, note pitches and lengths, tempo, key,
-   time signature, tuning, capo, strumming pattern. Undo/redo with ⌘Z / ⌘⇧Z.
+   time signature, tuning, capo, strumming pattern, and whether chords read as
+   plain triads or as detected. Undo/redo with ⌘Z / ⌘⇧Z.
 10. **Export**: chord chart (PDF and text), ASCII tab, MusicXML, MIDI, Guitar
     Pro 7 (`.gp`), alphaTex.
 
@@ -128,14 +129,39 @@ implementation as a fallback when the WASM bundle cannot load. On top of that:
 
 ### Note engine
 
-A harmonic-sum pitch tracker over a configurable register, median-filtered,
-segmented into notes, quantised to a simple grid, then thinned by density so you
-get a hook rather than every passing note.
+**Standard tier** runs a harmonic-sum pitch tracker over a configurable
+register, median-filtered, segmented into notes, quantised, then thinned by
+density so you get a hook rather than every passing note. It is monophonic on
+purpose: the Standard tier wants the line a student can hum.
 
-Essentia's `PredominantPitchMelodia` is deliberately **not** used: it is built
-for vocal melody over a full mix, and the built-in tracker followed a guitar
-line more reliably in testing. Spotify's **Basic Pitch** is the phase 2
-replacement for the Full tier - see `src/analysis/basicPitch.ts`.
+Essentia's `PredominantPitchMelodia` is deliberately **not** used. It is built
+for vocal melody over a full mix, and on a guitar register it returned
+near-zero salience pinned to the range boundary; the built-in tracker followed
+the line reliably.
+
+**Full tier** runs Spotify's **Basic Pitch**, which is polyphonic. Two notes on
+how it is wired:
+
+- It uses **TensorFlow.js**, not onnxruntime-web. That is what the package
+  ships, and the model is bundled in it rather than fetched from a CDN, so the
+  Full tier works offline.
+- It runs on the **main thread**, unlike the chord engine. tfjs can only reach
+  WebGL from a document, and the CPU backend is too slow to be useful. It
+  reports progress while it works.
+
+A guitar has six strings and Basic Pitch will happily report denser stacks than
+that, so notes that cannot be voiced are dropped - weakest of each stack first -
+and the count is reported. On the test clip that was 14 of 226.
+
+### Guitar isolation
+
+`server/` runs Demucs (`htdemucs`) behind a small FastAPI service. The client
+posts the trimmed clip, gets one stem back, and analyses that instead of the raw
+capture; the stem is also available as a playback source, so you can hear what
+the engine is reading. Guitars mostly land in Demucs' `other` stem.
+
+Every failure path is soft. No service, an unreachable one, or a separation that
+errors all fall back to analysing the raw capture, which is what phase 1 did.
 
 ### Tempo
 
@@ -157,6 +183,29 @@ the harmony is right.
 | Tempo half/double errors | Flagged when the two trackers disagree; ×2 and ÷2 buttons sit next to the tempo field. |
 | The recording is off concert pitch | The tuning offset is estimated and reported when it is significant. |
 
+## Playback
+
+Three sources, in order of how close they are to the record: the **original
+clip**, the **isolated guitar** stem once you have one, and alphaTab's **synth**
+playing the arrangement. Any of them can loop, and all three drive the same
+cursor.
+
+The chord chart is one row that scrolls itself to keep the sounding bar in view.
+
+### Why the highlight is not laggy
+
+The playhead lives outside React (`src/state/playhead.ts`). Driving it through
+component state meant a `setState` every animation frame, re-rendering the whole
+chart and riff table sixty times a second - that render work *was* the lag.
+Components now subscribe and snapshot the id of the chord under the playhead, so
+React bails out until that id changes: roughly once a bar instead of once a
+frame.
+
+The player also reports the audio *being heard* rather than the audio being
+scheduled, subtracting the graph and device output latency. Measured in
+Chromium, chord highlights land within about one frame (mean gap 2.417s against
+a true bar length of 2.414s, worst deviation 17ms).
+
 ## Architecture
 
 ```
@@ -169,7 +218,7 @@ src/
   export/      ascii, musicxml, midi, pdf, guitar pro
   components/  the UI
   state/       store, undo/redo
-server/        phase 2 Demucs isolation service (stub)
+server/        Demucs isolation service (FastAPI)
 ```
 
 Analysis runs in a **web worker** - chroma over a 30 second clip is a few
@@ -181,7 +230,7 @@ The alphaTab `Score` model is built once and serves rendering, synth playback,
 Guitar Pro export and alphaTex export, so what you see on screen is what lands
 in the file.
 
-### Two things that are easy to get backwards
+### Three things that are easy to get backwards
 
 - **Frets are always relative to the capo**, which is what a player reads off a
   tab staff. A chord is stored at concert pitch as detected; the *shape* chord is
@@ -189,6 +238,10 @@ in the file.
 - **alphaTab numbers strings 1..N from the lowest**, the reverse of MusicXML.
   Both conventions are in the codebase, each with a regression test, because
   flipping either one silently produces a mirror-image fingering.
+- **A tab staff cannot paint a note with no string.** alphaTab's painter throws
+  deep inside its worker, and the whole score fails to render while the rest of
+  the app looks fine. Anything reaching the riff track has a string assigned;
+  there is a test asserting exactly that.
 
 ## Tests
 
@@ -196,20 +249,37 @@ in the file.
 npm test
 ```
 
-41 tests. The pipeline tests synthesise chord progressions with realistic
+51 tests. The pipeline tests synthesise chord progressions with realistic
 harmonic density and noise, run the real analysis path, and assert the chart
 that comes out is the one a teacher would write down - currently 5/5
 progressions recovered exactly, with tempo inside 5%. The exporter tests check
 wellformedness and the invariants MuseScore and Guitar Pro actually care about.
+The polyphony tests cover what phase 2 changed: stacking, string collisions,
+and the fretboard limit.
 
-## Phase 2
+The separation service has its own suite:
 
-- Demucs stem isolation (`server/`, skeleton in place).
-- Basic Pitch for the Full tier (`src/analysis/basicPitch.ts`).
-- Richer chord toggles beyond the current simple/standard/rich vocabularies.
+```bash
+cd server && .venv/bin/python -m pytest -q
+```
 
-Guitar Pro export was planned for phase 2 but shipped in phase 1: alphaTab 1.8
-carries a GP7 exporter, so it rides on the score model already in place.
+8 tests covering validation, stem selection, response headers and that an
+uploaded clip is deleted even when separation fails. The separator itself is
+stubbed there, because Demucs' model weights cannot be downloaded in every
+environment.
+
+## Status
+
+Phase 1 and phase 2 are both in. Guitar Pro export was planned for phase 2 but
+shipped in phase 1: alphaTab 1.8 carries a GP7 exporter, so it rode on the score
+model already in place.
+
+**Not verified here:** Demucs' model weights download from hosts this
+development environment blocks, so the service has been exercised against a
+stubbed separator and a stand-in server, not against Demucs itself. The first
+real `/separate` call will download weights (a few hundred MB) before it
+answers. Separation is CPU-bound and slow without a GPU - expect minutes, not
+seconds, for a lesson-length clip.
 
 ## Licensing note
 
