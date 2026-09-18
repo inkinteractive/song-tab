@@ -234,17 +234,6 @@ export function CapturePanel() {
         )}
       </div>
 
-      <div className="card text-sm text-slate-400">
-        <h3 className="mb-2 font-semibold text-slate-300">What this can and cannot hear</h3>
-        <ul className="list-inside list-disc space-y-1">
-          <li>
-            The <strong>Spotify and Apple Music desktop apps are DRM-protected</strong> and cannot be captured by a
-            browser. Play through their web players and share that tab, or just play it out loud into the mic.
-          </li>
-          <li>Tab audio needs the "Share tab audio" checkbox - sharing a window or a screen usually carries no sound.</li>
-          <li>Mic capture runs with echo cancellation, noise suppression and auto-gain off, which music needs.</li>
-        </ul>
-      </div>
     </div>
   );
 }

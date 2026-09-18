@@ -42,7 +42,7 @@ export function separationStatus(config: SeparationConfig): SeparationStatus {
     return {
       available: false,
       reason:
-        'Not configured. Start the Demucs service in `server/` and put its URL here; until then the raw capture is analysed directly.',
+        'Not configured, so the raw capture is analysed directly. Separation runs Demucs on your own machine - there is no hosted service and it cannot run in the browser.',
     };
   }
   return { available: true, reason: `${config.model} → ${config.stem} stem, via ${config.endpoint}` };

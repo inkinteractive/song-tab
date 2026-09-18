@@ -100,6 +100,32 @@ export function AnalyseSetup() {
           )}
         </div>
         <p className="text-xs text-slate-400">{sep.reason}</p>
+        {!sep.available && (
+          <details className="rounded-md border border-ink-600 bg-ink-900 px-3 py-2 text-xs text-slate-400">
+            <summary className="cursor-pointer text-slate-300">How do I set this up?</summary>
+            <div className="mt-2 space-y-2">
+              <p>Clone the repo and run the service once; it downloads the model on its first separation.</p>
+              <pre className="overflow-x-auto rounded bg-ink-800 p-2 font-mono text-[11px] leading-relaxed text-slate-300">
+{`cd server
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --port 8000`}
+              </pre>
+              <p>
+                Then put <code className="font-mono">http://localhost:8000</code> in the field above.
+              </p>
+              <p className="text-amber-450">
+                This only works when you are running the app locally too. A browser will not let a page served over
+                https reach a service on your own machine, so the hosted site cannot use it however the service is
+                configured.
+              </p>
+              <p>
+                Expect minutes, not seconds, per clip on a CPU. Separation is optional - chord detection reads through
+                a dense mix well enough without it, and it mainly helps the note engine.
+              </p>
+            </div>
+          </details>
+        )}
 
         <div className="grid gap-2 sm:grid-cols-3">
           <div>

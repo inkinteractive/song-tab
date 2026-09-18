@@ -12,6 +12,7 @@ import { ShapeStrip } from './components/ShapeStrip';
 import { RiffEditor } from './components/RiffEditor';
 import { PlaybackBar } from './components/PlaybackBar';
 import { PdfExportButton } from './components/PdfExportButton';
+import { TierSwitch } from './components/TierSwitch';
 import type { CursorMode } from './render/AlphaTabView';
 import type { PlaybackSource } from './components/PlaybackBar';
 
@@ -19,7 +20,6 @@ import type { PlaybackSource } from './components/PlaybackBar';
 const AlphaTabView = lazy(() =>
   import('./render/AlphaTabView').then((m) => ({ default: m.AlphaTabView })),
 );
-import { TIER_LABELS } from './types';
 
 export function App() {
   const step = useStore((s) => s.step);
@@ -37,7 +37,7 @@ export function App() {
             Song <span className="text-amber-450">→</span> Tab
           </h1>
           <p className="text-sm text-slate-400">
-            Listen to a song, get a simplified single-guitar arrangement you can actually teach.
+            Listen to a song, get a simplified single-guitar arrangement you can actually play.
           </p>
         </div>
         <Stepper step={step} onJump={setStep} />
@@ -123,7 +123,7 @@ function ResultScreen() {
       <PlaybackBar api={api} source={source} onSourceChange={setSource} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="chip">{TIER_LABELS[a.tier].name} tier</span>
+        <TierSwitch />
         <div className="flex gap-2">
           <button className="btn btn-ghost px-2 py-1 text-xs" onClick={undo} disabled={past.length === 0}>
             ↶ Undo
