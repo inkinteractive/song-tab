@@ -5,8 +5,6 @@ dist
 public/font/
 public/soundfont/
 public/alphaTab*
-server/__pycache__/
-server/.venv/
 tsconfig.tsbuildinfo
 
 public/models/

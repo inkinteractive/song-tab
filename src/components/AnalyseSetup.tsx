@@ -1,11 +1,10 @@
 /**
- * Step 3 controls: tier, engine settings, optional isolation, and Analyse.
+ * Step 3 controls: tier, engine settings, and Analyse.
  */
 
 import { useState } from 'react';
 import { useStore } from '../state/store';
 import { TIER_LABELS, type Tier } from '../types';
-import { STEM_LABELS, separationStatus, type Stem } from '../analysis/separation';
 import { basicPitchAvailability } from '../analysis/basicPitch';
 import { midiToName, parsePitchClass, type KeyMode } from '../music/theory';
 import { SHARP_NAMES } from '../music/theory';
@@ -19,20 +18,10 @@ export function AnalyseSetup() {
   const analyse = useStore((s) => s.analyse);
   const analysing = useStore((s) => s.analysing);
   const error = useStore((s) => s.error);
-  const separation = useStore((s) => s.separation);
-  const setSeparation = useStore((s) => s.setSeparation);
-  const isolate = useStore((s) => s.isolate);
-  const isolating = useStore((s) => s.isolating);
-  const isolated = useStore((s) => s.isolated);
-  const isolationError = useStore((s) => s.isolationError);
-  const clearIsolated = useStore((s) => s.clearIsolated);
-  const checkService = useStore((s) => s.checkService);
-  const serviceHealth = useStore((s) => s.serviceHealth);
   const title = useStore((s) => s.title);
   const setTitle = useStore((s) => s.setTitle);
   const [advanced, setAdvanced] = useState(false);
 
-  const sep = separationStatus(separation);
   const bp = basicPitchAvailability();
 
   return (
@@ -88,127 +77,6 @@ export function AnalyseSetup() {
             </div>
           )}
         </div>
-      </div>
-
-      <div className="card space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-200">Isolate the guitar</h3>
-          {isolated && (
-            <span className="chip border-amber-450 text-amber-450">
-              {isolated.stem} stem ready ({isolated.model})
-            </span>
-          )}
-        </div>
-        <p className="text-xs text-slate-400">{sep.reason}</p>
-        {!sep.available && (
-          <details className="rounded-md border border-ink-600 bg-ink-900 px-3 py-2 text-xs text-slate-400">
-            <summary className="cursor-pointer text-slate-300">How do I set this up?</summary>
-            <div className="mt-2 space-y-2">
-              <p>Clone the repo and run the service once; it downloads the model on its first separation.</p>
-              <pre className="overflow-x-auto rounded bg-ink-800 p-2 font-mono text-[11px] leading-relaxed text-slate-300">
-{`cd server
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app:app --port 8000`}
-              </pre>
-              <p>
-                Then put <code className="font-mono">http://localhost:8000</code> in the field above.
-              </p>
-              <p className="text-amber-450">
-                This only works when you are running the app locally too. A browser will not let a page served over
-                https reach a service on your own machine, so the hosted site cannot use it however the service is
-                configured.
-              </p>
-              <p>
-                Expect minutes, not seconds, per clip on a CPU. Separation is optional - chord detection reads through
-                a dense mix well enough without it, and it mainly helps the note engine.
-              </p>
-            </div>
-          </details>
-        )}
-
-        <div className="grid gap-2 sm:grid-cols-3">
-          <div>
-            <label className="label">Service URL</label>
-            <input
-              className="input"
-              placeholder="http://localhost:8000"
-              value={separation.endpoint ?? ''}
-              onChange={(e) => setSeparation({ endpoint: e.target.value.trim() || null })}
-              onBlur={() => void checkService()}
-            />
-          </div>
-          <div>
-            <label className="label">Model</label>
-            <select
-              className="input"
-              value={separation.model}
-              onChange={(e) => setSeparation({ model: e.target.value as typeof separation.model })}
-            >
-              <option value="htdemucs">Demucs htdemucs (faster)</option>
-              <option value="htdemucs_ft">Demucs htdemucs_ft (better, slower)</option>
-            </select>
-          </div>
-          <div>
-            <label className="label">Stem</label>
-            <select
-              className="input"
-              value={separation.stem}
-              onChange={(e) => setSeparation({ stem: e.target.value as Stem })}
-            >
-              {(Object.keys(STEM_LABELS) as Stem[]).map((k) => (
-                <option key={k} value={k}>
-                  {STEM_LABELS[k]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            className="btn text-xs"
-            disabled={!sep.available || isolating}
-            onClick={() => void isolate()}
-          >
-            {isolating ? 'Separating… (this takes a while on CPU)' : isolated ? 'Re-run separation' : 'Isolate now'}
-          </button>
-          <button className="btn btn-ghost text-xs" disabled={!separation.endpoint} onClick={() => void checkService()}>
-            Test connection
-          </button>
-          {isolated && (
-            <>
-              <label className="flex items-center gap-2 text-sm text-slate-400">
-                <input
-                  type="checkbox"
-                  checked={settings.isolateGuitar}
-                  onChange={(e) => update({ isolateGuitar: e.target.checked })}
-                />
-                Analyse the stem
-              </label>
-              <button className="btn btn-ghost text-xs text-red-300" onClick={clearIsolated}>
-                Discard stem
-              </button>
-            </>
-          )}
-        </div>
-
-        {serviceHealth && (
-          <p className={`text-xs ${serviceHealth.reachable ? 'text-slate-400' : 'text-amber-450'}`}>
-            {serviceHealth.message}
-          </p>
-        )}
-        {isolationError && (
-          <p className="rounded-md border border-red-800 bg-red-950/60 px-3 py-2 text-xs text-red-200">
-            Separation failed: {isolationError}
-          </p>
-        )}
-        {isolated && (
-          <p className="text-xs text-slate-500">
-            The separated stem is also available as a playback source on the next screen, so you can hear what the
-            engine is reading.
-          </p>
-        )}
       </div>
 
       <div className="card">

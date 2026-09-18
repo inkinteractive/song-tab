@@ -47,7 +47,7 @@ export function computePeaks(mono: Float32Array, buckets: number): Peaks {
   return { min, max };
 }
 
-/** 16-bit PCM WAV, for download and for the phase-2 separation service. */
+/** 16-bit PCM WAV, for download and for anything that wants a real file. */
 export function encodeWav(mono: Float32Array, sampleRate: number): Blob {
   const bytesPerSample = 2;
   const dataSize = mono.length * bytesPerSample;

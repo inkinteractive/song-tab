@@ -14,28 +14,9 @@ import { tuningById } from '../music/fretboard';
 import { simplifyToTriad } from '../music/theory';
 import { bestCapoSuggestion, type CapoSuggestion } from '../music/capo';
 import { chordWeights } from '../analysis/simplify';
-import {
-  DEFAULT_SEPARATION,
-  probeService,
-  separateStem,
-  type SeparationConfig,
-  type ServiceHealth,
-} from '../analysis/separation';
-import { encodeWav, toMono } from '../audio/buffer';
-import { decodeToBuffer } from '../audio/capture';
 import { basicPitchAvailability, transcribeWithBasicPitch } from '../analysis/basicPitch';
 
 export type Step = 'capture' | 'trim' | 'analyse' | 'edit';
-
-/** A separated stem of the current trim, ready to analyse or listen to. */
-export interface IsolatedStem {
-  mono: Float32Array;
-  sampleRate: number;
-  stem: string;
-  model: string;
-  /** The trim it was produced from, so a re-trim invalidates it. */
-  trim: { start: number; end: number };
-}
 
 export interface ClipAudio {
   mono: Float32Array;
@@ -52,17 +33,12 @@ interface State {
   audio: ClipAudio | null;
   trim: { start: number; end: number };
   settings: AnalysisSettings;
-  separation: SeparationConfig;
 
   analysing: boolean;
   progress: AnalysisProgress | null;
   error: string | null;
   result: AnalysisResult | null;
 
-  isolating: boolean;
-  isolationError: string | null;
-  isolated: IsolatedStem | null;
-  serviceHealth: ServiceHealth | null;
 
   arrangement: Arrangement | null;
   past: Arrangement[];
@@ -76,13 +52,9 @@ interface State {
   setStep(step: Step): void;
   updateSettings(patch: Partial<AnalysisSettings>): void;
   setTier(tier: Tier): void;
-  setSeparation(patch: Partial<SeparationConfig>): void;
 
   analyse(): Promise<void>;
   cancelAnalysis(): void;
-  isolate(): Promise<void>;
-  clearIsolated(): void;
-  checkService(): Promise<void>;
 
   /** Any edit to the arrangement; pushes undo state. */
   edit(mutator: (draft: Arrangement) => Arrangement | void, label?: string): void;
@@ -112,17 +84,11 @@ export const useStore = create<State>((set, get) => ({
   audio: null,
   trim: { start: 0, end: 0 },
   settings: { ...DEFAULT_SETTINGS },
-  separation: { ...DEFAULT_SEPARATION },
 
   analysing: false,
   progress: null,
   error: null,
   result: null,
-
-  isolating: false,
-  isolationError: null,
-  isolated: null,
-  serviceHealth: null,
 
   arrangement: null,
   past: [],
@@ -140,8 +106,6 @@ export const useStore = create<State>((set, get) => ({
       result: null,
       arrangement: null,
       error: null,
-      isolated: null,
-      isolationError: null,
       past: [],
       future: [],
     }),
@@ -154,10 +118,7 @@ export const useStore = create<State>((set, get) => ({
     if (!audio) return;
     const s = Math.max(0, Math.min(start, audio.duration));
     const e = Math.max(s + 0.5, Math.min(end, audio.duration));
-    // A stem belongs to the trim it came from.
-    const isolated = get().isolated;
-    const stale = isolated && (isolated.trim.start !== s || isolated.trim.end !== e);
-    set({ trim: { start: s, end: e }, isolated: stale ? null : isolated });
+    set({ trim: { start: s, end: e } });
   },
 
   setStep: (step) => set({ step }),
@@ -166,34 +127,22 @@ export const useStore = create<State>((set, get) => ({
 
   setTier: (tier) => set((s) => ({ settings: { ...s.settings, tier } })),
 
-  setSeparation: (patch) => set((s) => ({ separation: { ...s.separation, ...patch } })),
-
   async analyse() {
-    const { audio, trim, settings, isolated } = get();
+    const { audio, trim, settings } = get();
     if (!audio) return;
     activeRun?.cancel();
     set({ analysing: true, error: null, progress: { phase: 'loading', message: 'Starting…' }, step: 'analyse' });
 
-    // The isolated stem is already the trimmed section, so it needs no slicing.
-    const useStem = settings.isolateGuitar && isolated !== null;
-    const clip = useStem
-      ? isolated!.mono
-      : audio.mono.slice(
-          Math.floor(trim.start * audio.sampleRate),
-          Math.min(audio.mono.length, Math.ceil(trim.end * audio.sampleRate)),
-        );
-    const sampleRate = useStem ? isolated!.sampleRate : audio.sampleRate;
+    const clip = audio.mono.slice(
+      Math.floor(trim.start * audio.sampleRate),
+      Math.min(audio.mono.length, Math.ceil(trim.end * audio.sampleRate)),
+    );
+    const sampleRate = audio.sampleRate;
 
     const run = runAnalysis(clip, sampleRate, settings, (progress) => set({ progress }));
     activeRun = run;
     try {
       const result = await run.promise;
-      if (useStem) {
-        result.arrangement.notes.unshift(
-          `Analysed the isolated ${isolated!.stem} stem (${isolated!.model}) rather than the raw capture.`,
-        );
-      }
-
       // Basic Pitch cannot run in the worker - tfjs needs a document to reach
       // WebGL - so the Full tier's transcription happens here, on the clip the
       // worker just analysed, and replaces the monophonic tracker's output.
@@ -271,52 +220,6 @@ export const useStore = create<State>((set, get) => ({
     } finally {
       activeRun = null;
     }
-  },
-
-  async isolate() {
-    const { audio, trim, separation } = get();
-    if (!audio || !separation.endpoint) return;
-    set({ isolating: true, isolationError: null });
-    try {
-      const clip = audio.mono.slice(
-        Math.floor(trim.start * audio.sampleRate),
-        Math.min(audio.mono.length, Math.ceil(trim.end * audio.sampleRate)),
-      );
-      const wav = encodeWav(clip, audio.sampleRate);
-      const separated = await separateStem(wav, separation);
-      const buffer = await decodeToBuffer(separated);
-      set({
-        isolated: {
-          mono: toMono(buffer),
-          sampleRate: buffer.sampleRate,
-          stem: separation.stem,
-          model: separation.model,
-          trim: { start: trim.start, end: trim.end },
-        },
-        isolating: false,
-      });
-      // Isolating is only useful if the analysis then uses it.
-      set((s) => ({ settings: { ...s.settings, isolateGuitar: true } }));
-    } catch (err) {
-      set({
-        isolating: false,
-        isolationError: err instanceof Error ? err.message : String(err),
-      });
-    }
-  },
-
-  clearIsolated() {
-    set({ isolated: null, isolationError: null });
-    set((s) => ({ settings: { ...s.settings, isolateGuitar: false } }));
-  },
-
-  async checkService() {
-    const endpoint = get().separation.endpoint;
-    if (!endpoint) {
-      set({ serviceHealth: null });
-      return;
-    }
-    set({ serviceHealth: await probeService(endpoint) });
   },
 
   cancelAnalysis() {

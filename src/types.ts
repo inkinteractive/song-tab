@@ -89,9 +89,7 @@ export interface AnalysisSettings {
   /** Optional overrides - null means "use what was detected". */
   tempoOverride: number | null;
   keyOverride: MusicalKey | null;
-  /** Analyse the isolated stem rather than the raw capture (phase 2). */
-  isolateGuitar: boolean;
-  /** Full tier: run Basic Pitch instead of the phase 1 monophonic tracker. */
+  /** Full tier: run Basic Pitch instead of the monophonic tracker. */
   useBasicPitch: boolean;
 }
 
@@ -109,7 +107,6 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   beatsPerBar: 4,
   tempoOverride: null,
   keyOverride: null,
-  isolateGuitar: false,
   useBasicPitch: true,
 };
 
@@ -134,7 +131,6 @@ export type AnalysisProgress =
   | { phase: 'rhythm'; message: string }
   | { phase: 'chords'; message: string }
   | { phase: 'melody'; message: string }
-  | { phase: 'isolate'; message: string }
   | { phase: 'transcribe'; message: string; percent?: number }
   | { phase: 'simplify'; message: string }
   | { phase: 'done'; message: string };
