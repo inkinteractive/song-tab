@@ -12,6 +12,7 @@ import { PlaybackBar } from './components/PlaybackBar';
 import { PdfExportButton } from './components/PdfExportButton';
 import { TabStaff } from './components/TabStaff';
 import { ReliabilityNote } from './components/ReliabilityNote';
+import { SHOW_RIFF_EDITOR, SHOW_WHAT_IT_HEARD } from './panels';
 import type { PlaybackSource } from './components/PlaybackBar';
 
 // alphaTab is ~1.5MB and no longer draws anything; it is the synth only.
@@ -162,8 +163,8 @@ function ResultScreen() {
       </div>
 
       <ChordChart />
-      <ResultSummary />
-      <RiffEditor />
+      {SHOW_WHAT_IT_HEARD && <ResultSummary />}
+      {SHOW_RIFF_EDITOR && <RiffEditor />}
     </div>
   );
 }

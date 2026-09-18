@@ -150,12 +150,6 @@ export function CapturePanel() {
           Play the section out loud and capture it, or share the browser tab it is streaming from. Thirty seconds of
           the verse or chorus reads far better than a whole track.
         </p>
-        <p className="mt-2 text-sm text-slate-500">
-          It reads harmony from <strong className="font-medium text-slate-400">one instrument at a time</strong> - a
-          student playing in the room, a solo guitar demo, a sparse recording. A produced track with a full band,
-          vocals and heavy effects will come back with the wrong chords. It says so when the result looks like that,
-          and every chord on the chart is editable.
-        </p>
 
         {embedded && (
           <div className="mt-4 rounded-md border border-amber-450/50 bg-amber-450/10 px-3 py-2 text-sm text-amber-100">
@@ -172,15 +166,12 @@ export function CapturePanel() {
               onClick={() => arm('mic')}
             >
               <span className="text-base">Microphone</span>
-              <span className="text-xs font-normal opacity-80">Student plays, or point at a speaker</span>
             </button>
             <button className={`btn h-20 flex-col ${embedded ? 'opacity-60' : ''}`} onClick={() => arm('tab')}>
               <span className="text-base">Browser tab audio</span>
-              <span className="text-xs font-normal opacity-70">Share a tab with "Share tab audio" ticked</span>
             </button>
             <label className={`btn h-20 cursor-pointer flex-col ${embedded ? 'btn-primary' : ''}`}>
               <span className="text-base">Import a file</span>
-              <span className="text-xs font-normal opacity-70">WAV, MP3, M4A, FLAC</span>
               <input
                 type="file"
                 accept="audio/*"
