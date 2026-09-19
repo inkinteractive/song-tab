@@ -1,10 +1,16 @@
 /**
  * Turning a raw chord path into something teachable.
  *
- * The detector emits a chord every 46ms. A beginner needs roughly one chord per
- * bar. This module does that collapse: snap segments to the beat grid, pick the
- * chord that owns each bar, allow a mid-bar change only when the evidence is
- * strong, and reduce extended chords to plain triads unless asked otherwise.
+ * The detector emits a chord every 46ms. A beginner needs one chord per bar.
+ * This module does that collapse: snap segments to the beat grid, pick the
+ * chord that owns each bar, and reduce extended chords to plain triads unless
+ * asked otherwise.
+ *
+ * It used to emit a second chord when one owned each half of a bar convincingly.
+ * Real songs do change mid-bar, but the chart could not tell a real change from
+ * the detector wobbling between two readings of the same harmony, and a bar
+ * holding two stacked diagrams is harder to teach than a bar holding one. The
+ * teacher can still split a bar by hand in the chord chart.
  */
 
 import { type Chord, simplifyToTriad, chordsEqual } from '../music/theory';
@@ -14,8 +20,6 @@ import type { BarChord } from '../types';
 export interface SimplifyOptions {
   beats: number[];
   beatsPerBar: number;
-  /** A mid-bar chord must out-weigh the bar chord by this factor to survive. */
-  stickiness: number;
   /** Collapse 7ths/sus/add9 to their plain triad. */
   reduceToTriads: boolean;
   /** Bars whose best chord scores below this are left empty. */
@@ -51,15 +55,9 @@ function accumulate(
   return [...map.values()].sort((a, b) => b.weight - a.weight);
 }
 
-/**
- * One (occasionally two) chords per bar.
- *
- * A second chord is only emitted when a different chord owns a clear run inside
- * the bar - that is what stops a wash of reverb from producing four chord
- * changes a bar.
- */
+/** Exactly one chord per bar - the chord that owns the most of it. */
 export function simplifyToBars(segments: ChordSegment[], opts: SimplifyOptions): BarChord[] {
-  const { beats, beatsPerBar, stickiness } = opts;
+  const { beats, beatsPerBar } = opts;
   const minConfidence = opts.minConfidence ?? 0.05;
   const out: BarChord[] = [];
   if (beats.length < 2) return out;
@@ -74,33 +72,7 @@ export function simplifyToBars(segments: ChordSegment[], opts: SimplifyOptions):
 
     const ranked = accumulate(segments, start, end);
     if (ranked.length === 0 || ranked[0].confidence < minConfidence) continue;
-    const primary = ranked[0];
-
-    // Look for a strong change on the natural split point of the bar.
-    const splitBeat = firstBeat + Math.floor(beatsPerBar / 2);
-    let split: { first: Weighted; second: Weighted } | null = null;
-    if (splitBeat > firstBeat && splitBeat < lastBeat) {
-      const firstHalf = accumulate(segments, start, beats[splitBeat]);
-      const secondHalf = accumulate(segments, beats[splitBeat], end);
-      if (
-        firstHalf.length &&
-        secondHalf.length &&
-        !chordsEqual(firstHalf[0].chord, secondHalf[0].chord) &&
-        // Both halves must be confidently their own chord, not a smear.
-        firstHalf[0].weight > stickiness * (firstHalf[1]?.weight ?? 0) &&
-        secondHalf[0].weight > stickiness * (secondHalf[1]?.weight ?? 0)
-      ) {
-        split = { first: firstHalf[0], second: secondHalf[0] };
-      }
-    }
-
-    const half = Math.floor(beatsPerBar / 2);
-    if (split) {
-      out.push(make(bar, firstBeat, half, split.first, opts));
-      out.push(make(bar, firstBeat + half, beatsPerBar - half, split.second, opts));
-    } else {
-      out.push(make(bar, firstBeat, lastBeat - firstBeat, primary, opts));
-    }
+    out.push(make(bar, firstBeat, lastBeat - firstBeat, ranked[0], opts));
   }
   return out;
 }

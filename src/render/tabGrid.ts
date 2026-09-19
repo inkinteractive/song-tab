@@ -11,6 +11,7 @@
  */
 
 import { displayName, toBars, tuningOf } from '../music/arrangement';
+import { patternById } from '../music/strumming';
 import { pitchClassName } from '../music/theory';
 import type { Arrangement } from '../types';
 
@@ -20,7 +21,7 @@ const STANDARD_LABELS = ['E', 'A', 'D', 'G', 'B', 'e'];
 export const COLUMNS_PER_BEAT = 4;
 
 /** What a character is, so the page can colour it and the exporter can ignore it. */
-export type CharKind = 'label' | 'separator' | 'dash' | 'fret' | 'chord' | 'blank';
+export type CharKind = 'label' | 'separator' | 'dash' | 'fret' | 'chord' | 'strum' | 'blank';
 
 export interface TabLine {
   text: string;
@@ -31,6 +32,8 @@ export interface TabLine {
 export interface TabSystem {
   bars: { index: number; startBeat: number }[];
   chordLine: TabLine;
+  /** D and U under the chord names, on the column each stroke falls on. */
+  strumLine: TabLine;
   /** Highest string first, the way tab is read. */
   stringLines: TabLine[];
 }
@@ -65,6 +68,20 @@ function push(r: Row, text: string, kind: CharKind): void {
 
 function toLine(r: Row): TabLine {
   return { text: r.chars.join(''), kinds: r.kinds };
+}
+
+
+/**
+ * Strokes for one bar, one per eighth note.
+ *
+ * A pattern is written for the bar length it suits - eight eighths for 4/4, six
+ * for the waltz - so it is cycled to fill whatever time signature the
+ * arrangement is in rather than trailing off or overrunning.
+ */
+function strokesForBar(a: Arrangement): ('D' | 'U' | '-')[] {
+  const pattern = patternById(a.strumPatternId).strokes;
+  const eighths = a.beatsPerBar * 2;
+  return Array.from({ length: eighths }, (_, i) => pattern[i % pattern.length]);
 }
 
 /**
@@ -105,6 +122,23 @@ export function buildTabGrid(a: Arrangement, maxWidth = 72): TabGrid {
       push(chordRow, ' ', 'blank');
     });
 
+    // The strum, on the grid rather than described in a legend: a stroke every
+    // eighth note is a column every two, so you can read the rhythm straight
+    // down from the chord name to the frets. Skipped eighths are left blank -
+    // the strokes you can see are the strokes you play, and counting them gives
+    // the number of strums in the bar.
+    const strumRow = row();
+    push(strumRow, ' '.repeat(prefixColumns), 'blank');
+    const strokes = strokesForBar(a);
+    group.forEach(() => {
+      for (let col = 0; col < columnsPerBar; col++) {
+        const stroke = col % 2 === 0 ? strokes[col / 2] : '-';
+        const ch = stroke === '-' ? ' ' : stroke;
+        push(strumRow, ch, ch === ' ' ? 'blank' : 'strum');
+      }
+      push(strumRow, ' ', 'blank');
+    });
+
     // One grid per string, low to high, then reversed for printing.
     const gridLowFirst = labels.map(() => group.map(() => new Array<string>(columnsPerBar).fill('-')));
     group.forEach((bar, b) => {
@@ -134,6 +168,7 @@ export function buildTabGrid(a: Arrangement, maxWidth = 72): TabGrid {
     systems.push({
       bars: group.map((b) => ({ index: b.index, startBeat: b.startBeat })),
       chordLine: toLine(chordRow),
+      strumLine: toLine(strumRow),
       stringLines,
     });
   }

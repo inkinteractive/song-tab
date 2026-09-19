@@ -80,6 +80,7 @@ export function asciiTab(a: Arrangement, title = 'Simplified tab'): string {
   // The same grid the page draws, printed instead of coloured.
   for (const system of buildTabGrid(a).systems) {
     lines.push(system.chordLine.text.replace(/\s+$/, ''));
+    lines.push(system.strumLine.text.replace(/\s+$/, ''));
     for (const line of system.stringLines) lines.push(line.text);
     lines.push('');
   }

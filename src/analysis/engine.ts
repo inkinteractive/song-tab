@@ -155,7 +155,6 @@ export async function analyzeClip(input: AnalyzeInput, onProgress: ProgressFn = 
     simplifyToBars(segments, {
       beats,
       beatsPerBar: settings.beatsPerBar,
-      stickiness: settings.chordStickiness,
       reduceToTriads: !settings.richChords,
     }),
   );

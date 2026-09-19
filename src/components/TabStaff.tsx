@@ -1,6 +1,6 @@
 /**
  * The tab, drawn as the monospace grid a guitarist expects: six dashed lines,
- * fret numbers on them, chord names above, bar lines between.
+ * fret numbers on them, chord names and the strum above, bar lines between.
  *
  * This is the same grid the PDF prints - both come out of `buildTabGrid` - so
  * what is on screen and what is handed to the student are the same document.
@@ -23,6 +23,7 @@ const KIND_CLASS: Record<CharKind, string> = {
   dash: 'text-slate-300',
   fret: 'font-semibold text-slate-900',
   chord: 'font-semibold text-amber-700',
+  strum: 'font-semibold text-slate-500',
   blank: '',
 };
 
@@ -134,6 +135,7 @@ export function TabStaff({ arrangement: a }: { arrangement: Arrangement }) {
             />
             <div className="relative">
               <Line line={system.chordLine} />
+              <Line line={system.strumLine} />
               {system.stringLines.map((line, j) => (
                 <Line key={j} line={line} />
               ))}

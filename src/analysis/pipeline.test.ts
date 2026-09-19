@@ -59,7 +59,7 @@ describe('chord pipeline', () => {
     expect(nearest).toBeLessThan(0.08);
   }, 90000);
 
-  it('honours a tempo override and keeps roughly one chord per bar', async () => {
+  it('honours a tempo override and puts exactly one chord in every bar', async () => {
     const samples = synthesizeProgression({
       sampleRate: SR,
       tempo: 90,
@@ -73,8 +73,10 @@ describe('chord pipeline', () => {
       settings: { ...DEFAULT_SETTINGS, tempoOverride: 90 },
     });
     expect(result.arrangement.tempo).toBe(90);
-    const midBar = result.arrangement.chords.filter((c) => c.startBeat % 4 !== 0);
-    expect(midBar.length).toBeLessThanOrEqual(result.arrangement.chords.length / 2);
+    // No chord may start off a bar line, and no bar may hold two.
+    const starts = result.arrangement.chords.map((c) => c.startBeat);
+    expect(starts.filter((b) => b % 4 !== 0)).toEqual([]);
+    expect(new Set(starts).size).toBe(starts.length);
   }, 90000);
 
   it('reduces extended chords to plain triads by default', async () => {

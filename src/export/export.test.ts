@@ -176,6 +176,37 @@ describe('tab grid', () => {
     expect(system.chordLine.text.slice(grid.prefixColumns, grid.prefixColumns + 1)).toBe('C');
   });
 
+  it('writes the strum on the grid, a stroke every two columns', () => {
+    // 'ddu-udu' is D - D U - U D U over eight eighths; an eighth is two
+    // sixteenth columns, so the strokes land on 0, 4, 6, 10, 12, 14 and the
+    // skipped eighths stay blank.
+    const grid = buildTabGrid(fixture());
+    const line = grid.systems[0].strumLine;
+    const bar = line.text.slice(grid.prefixColumns, grid.prefixColumns + grid.columnsPerBar);
+    expect(bar).toBe('D   D U   U D U ');
+    expect([...bar].filter((c) => c !== ' ')).toHaveLength(6); // six strums a bar
+    // Odd columns are never a stroke, so the rhythm reads straight down.
+    for (let i = 1; i < bar.length; i += 2) expect(bar[i]).toBe(' ');
+    expect(line.text).toHaveLength(grid.prefixColumns + grid.systems[0].bars.length * (grid.columnsPerBar + 1));
+  });
+
+  it('cycles the strum to fill a bar the pattern was not written for', () => {
+    // The folk pattern is eight eighths; 3/4 is six, 5/4 is ten.
+    const three = buildTabGrid(fixture({ beatsPerBar: 3 }));
+    const threeBar = three.systems[0].strumLine.text.slice(
+      three.prefixColumns,
+      three.prefixColumns + three.columnsPerBar,
+    );
+    expect(threeBar).toBe('D   D U   U '); // 3/4 is twelve columns
+
+    const five = buildTabGrid(fixture({ beatsPerBar: 5 }));
+    const fiveBar = five.systems[0].strumLine.text.slice(
+      five.prefixColumns,
+      five.prefixColumns + five.columnsPerBar,
+    );
+    expect(fiveBar).toBe('D   D U   U D U D   ');
+  });
+
   it('reads out as six labelled strings with bar lines', () => {
     const text = asciiTab(fixture());
     const lines = text.split('\n');
