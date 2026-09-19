@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "fixtures": "vitest run src/analysis/fixtures.test.ts"
   },
   "dependencies": {
     "@coderline/alphatab": "^1.4.0",
