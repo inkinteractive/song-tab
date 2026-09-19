@@ -227,15 +227,6 @@ export function ChordChart() {
               />
             </div>
 
-            {selected.detected && selected.detected.quality !== selected.chord.quality && (
-              <button
-                className="btn text-xs"
-                onClick={() => setChordField(selected.id, { ...selected.detected })}
-                title="Restore the extended chord the engine actually detected"
-              >
-                Use detected {chordName(selected.detected)}
-              </button>
-            )}
             <button className="btn text-xs text-red-300" onClick={() => removeChord(selected.id)}>
               Delete
             </button>
