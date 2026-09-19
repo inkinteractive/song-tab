@@ -1,6 +1,12 @@
 /**
- * The chart a teacher hands over, and the main editing surface: a bar grid of chord
- * names. Click a bar to change the chord, its voicing, or to split/clear it.
+ * The chart a teacher hands over, and the main editing surface: a bar grid of
+ * chord names. Click a bar to change the chord, its voicing or its length, or
+ * to clear it.
+ *
+ * One chord per bar, and nothing here makes a second one. The analysis stopped
+ * emitting mid-bar changes because it could not tell a real one from the
+ * detector wobbling, and a Split-in-half button here would have put them back
+ * by hand.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -72,25 +78,6 @@ export function ChordChart() {
   function removeChord(id: string) {
     edit((d) => void (d.chords = d.chords.filter((c) => c.id !== id)));
     setSelectedId(null);
-  }
-
-  function splitChord(id: string) {
-    edit((d) => {
-      const i = d.chords.findIndex((c) => c.id === id);
-      if (i < 0) return;
-      const c = d.chords[i];
-      if (c.durationBeats < 2) return;
-      const half = c.durationBeats / 2;
-      const second: BarChord = {
-        ...c,
-        id: `${c.id}-b${Date.now().toString(36)}`,
-        startBeat: c.startBeat + half,
-        durationBeats: half,
-        shapeId: undefined,
-      };
-      c.durationBeats = half;
-      d.chords.splice(i + 1, 0, second);
-    });
   }
 
   function addChordToBar(startBeat: number) {
@@ -249,9 +236,6 @@ export function ChordChart() {
                 Use detected {chordName(selected.detected)}
               </button>
             )}
-            <button className="btn text-xs" onClick={() => splitChord(selected.id)} disabled={selected.durationBeats < 2}>
-              Split in half
-            </button>
             <button className="btn text-xs text-red-300" onClick={() => removeChord(selected.id)}>
               Delete
             </button>
